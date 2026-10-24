@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/server";
 
 export const instant = false;
 import { Header } from "@/components/header";
@@ -15,7 +15,7 @@ import {
   ShieldCheck,
   ArrowLeft,
   Navigation,
-  User,
+  AlertTriangle,
 } from "lucide-react";
 
 const placeholderSpots = [
@@ -61,27 +61,46 @@ const placeholderSpots = [
 ];
 
 export default async function DriverPage() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user: { id: string; email?: string } | null = null;
+  let profile: { full_name: string; phone?: string | null; role: string } | null = null;
+  const isConfigured = isSupabaseConfigured();
 
-  if (!user) {
-    redirect("/login?next=/driver");
-  }
+  if (isConfigured) {
+    try {
+      const supabase = await createClient();
+      const {
+        data: { user: authUser },
+      } = await supabase.auth.getUser();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name, phone, role")
-    .eq("id", user.id)
-    .maybeSingle();
+      if (!authUser) {
+        redirect("/login?next=/driver");
+      }
+      user = authUser;
 
-  if (!profile || !profile.role) {
-    redirect("/onboarding");
-  }
+      const { data: dbProfile } = await supabase
+        .from("profiles")
+        .select("full_name, phone, role")
+        .eq("id", authUser.id)
+        .maybeSingle();
 
-  if (profile.role !== "driver") {
-    redirect("/owner");
+      if (!dbProfile || !dbProfile.role) {
+        redirect("/onboarding");
+      }
+
+      if (dbProfile.role !== "driver") {
+        redirect("/owner");
+      }
+      profile = dbProfile;
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("NEXT_REDIRECT")) {
+        throw err;
+      }
+      console.warn("DriverPage auth query error:", err);
+      redirect("/login?error=connection_failed");
+    }
+  } else {
+    user = { id: "demo-driver-id", email: "driver@example.com" };
+    profile = { full_name: "Demo Driver", role: "driver", phone: null };
   }
 
   return (
@@ -89,6 +108,16 @@ export default async function DriverPage() {
       <Header />
 
       <main className="flex-1 pb-16">
+        {/* Banner if Supabase credentials are placeholder */}
+        {!isConfigured && (
+          <div className="bg-[#FFC93C]/20 border-b border-[#FFC93C]/40 px-4 py-2.5 text-xs text-[#0B1F3A] flex items-center justify-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-[#0B1F3A] shrink-0" />
+            <span>
+              <strong>Preview Mode:</strong> Live Supabase credentials not yet detected in <code className="bg-white/80 px-1 py-0.5 rounded font-mono">.env.local</code>. Please set your real <code className="bg-white/80 px-1 py-0.5 rounded font-mono">NEXT_PUBLIC_SUPABASE_URL</code> to test live authentication.
+            </span>
+          </div>
+        )}
+
         {/* Top Header Banner */}
         <section className="bg-[#0B1F3A] text-white py-12 px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-7xl">
@@ -119,9 +148,9 @@ export default async function DriverPage() {
               {/* Status info */}
               <div className="rounded-[16px] bg-white/10 border border-white/10 p-4 text-xs text-slate-300 max-w-xs">
                 <span className="font-semibold text-white block mb-1">
-                  Authenticated: {user.email}
+                  Status: {user.email}
                 </span>
-                Protected route active. Interactive Leaflet map layers, dynamic slot availability, and booking checkouts will connect here.
+                Protected driver route active. Interactive Leaflet map layers, dynamic slot availability, and booking checkouts will connect here.
               </div>
             </div>
           </div>

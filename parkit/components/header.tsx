@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { Car, Menu, X, ArrowRight, LogOut, User, Building2 } from "lucide-react";
 
 export function Header() {
@@ -17,65 +17,84 @@ export function Header() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function getSession() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (session?.user) {
-        setUser(session.user);
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("full_name, role")
-          .eq("id", session.user.id)
-          .maybeSingle();
-
-        if (profile) {
-          setUserRole(profile.role as "driver" | "owner");
-          setUserName(profile.full_name);
-        } else if (session.user.user_metadata) {
-          setUserRole(session.user.user_metadata.role);
-          setUserName(session.user.user_metadata.full_name);
-        }
-      } else {
-        setUser(null);
-        setUserRole(null);
-        setUserName(null);
-      }
+    if (!isSupabaseConfigured()) {
       setLoading(false);
+      return;
+    }
+
+    async function getSession() {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session?.user) {
+          setUser(session.user);
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name, role")
+            .eq("id", session.user.id)
+            .maybeSingle();
+
+          if (profile) {
+            setUserRole(profile.role as "driver" | "owner");
+            setUserName(profile.full_name);
+          } else if (session.user.user_metadata) {
+            setUserRole(session.user.user_metadata.role);
+            setUserName(session.user.user_metadata.full_name);
+          }
+        } else {
+          setUser(null);
+          setUserRole(null);
+          setUserName(null);
+        }
+      } catch (err) {
+        console.warn("Could not retrieve Supabase session:", err);
+      } finally {
+        setLoading(false);
+      }
     }
 
     getSession();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session?.user) {
-        setUser(session.user);
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("full_name, role")
-          .eq("id", session.user.id)
-          .maybeSingle();
+    try {
+      const {
+        data: { subscription },
+      } = supabase.auth.onAuthStateChange(async (_event, session) => {
+        try {
+          if (session?.user) {
+            setUser(session.user);
+            const { data: profile } = await supabase
+              .from("profiles")
+              .select("full_name, role")
+              .eq("id", session.user.id)
+              .maybeSingle();
 
-        if (profile) {
-          setUserRole(profile.role as "driver" | "owner");
-          setUserName(profile.full_name);
-        } else if (session.user.user_metadata) {
-          setUserRole(session.user.user_metadata.role);
-          setUserName(session.user.user_metadata.full_name);
+            if (profile) {
+              setUserRole(profile.role as "driver" | "owner");
+              setUserName(profile.full_name);
+            } else if (session.user.user_metadata) {
+              setUserRole(session.user.user_metadata.role);
+              setUserName(session.user.user_metadata.full_name);
+            }
+          } else {
+            setUser(null);
+            setUserRole(null);
+            setUserName(null);
+          }
+        } catch {
+          // Ignore state change errors
+        } finally {
+          setLoading(false);
         }
-      } else {
-        setUser(null);
-        setUserRole(null);
-        setUserName(null);
-      }
-      setLoading(false);
-    });
+      });
 
-    return () => {
-      subscription.unsubscribe();
-    };
+      return () => {
+        subscription.unsubscribe();
+      };
+    } catch {
+      // Ignore listener attachment errors if unconfigured
+    }
   }, [supabase]);
 
   const handleLogout = async () => {

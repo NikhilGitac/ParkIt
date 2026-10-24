@@ -95,7 +95,14 @@ export default function SignupPage() {
         }
       }
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Signup failed. Please try again.";
+      let msg = "Signup failed. Please try again.";
+      if (err instanceof Error) {
+        if (err.message.toLowerCase().includes("fetch")) {
+          msg = "Could not connect to Supabase. Please check your actual NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local.";
+        } else {
+          msg = err.message;
+        }
+      }
       setErrorMsg(msg);
     } finally {
       setLoading(false);
