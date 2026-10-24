@@ -1,4 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+
+export const instant = false;
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import {
@@ -11,7 +15,7 @@ import {
   ShieldCheck,
   ArrowLeft,
   Navigation,
-  Compass,
+  User,
 } from "lucide-react";
 
 const placeholderSpots = [
@@ -56,7 +60,30 @@ const placeholderSpots = [
   },
 ];
 
-export default function DriverPage() {
+export default async function DriverPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login?next=/driver");
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name, phone, role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!profile || !profile.role) {
+    redirect("/onboarding");
+  }
+
+  if (profile.role !== "driver") {
+    redirect("/owner");
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-[#F8FAFC]">
       <Header />
@@ -73,9 +100,14 @@ export default function DriverPage() {
             </Link>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
-                <span className="inline-block rounded-full bg-[#2FD08A]/20 px-3 py-1 text-xs font-bold text-[#2FD08A] mb-2">
-                  Driver Portal
-                </span>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="inline-block rounded-full bg-[#2FD08A]/20 px-3 py-1 text-xs font-bold text-[#2FD08A]">
+                    Driver Portal
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    Welcome back, <strong className="text-white">{profile.full_name}</strong>
+                  </span>
+                </div>
                 <h1 className="text-3xl font-extrabold sm:text-4xl">
                   Find & Reserve Parking
                 </h1>
@@ -87,9 +119,9 @@ export default function DriverPage() {
               {/* Status info */}
               <div className="rounded-[16px] bg-white/10 border border-white/10 p-4 text-xs text-slate-300 max-w-xs">
                 <span className="font-semibold text-white block mb-1">
-                  Route Status: Phase 1 Placeholder
+                  Authenticated: {user.email}
                 </span>
-                Full Leaflet interactive map, realtime slot availability, and booking flows will be connected here.
+                Protected route active. Interactive Leaflet map layers, dynamic slot availability, and booking checkouts will connect here.
               </div>
             </div>
           </div>
@@ -194,16 +226,6 @@ export default function DriverPage() {
                 </div>
               </div>
             ))}
-          </div>
-
-          {/* Development roadmap callout */}
-          <div className="mt-10 rounded-[16px] border border-dashed border-[#2FD08A] bg-[#2FD08A]/5 p-6 text-center">
-            <h4 className="text-base font-bold text-[#0B1F3A]">
-              🗺️ Map Engine & Instant Booking Under Construction
-            </h4>
-            <p className="mt-1 text-xs text-slate-600 max-w-xl mx-auto">
-              Per specifications, interactive Leaflet map layers, dynamic reservation checkouts, and Supabase live slot syncing will be activated in upcoming phases.
-            </p>
           </div>
         </section>
       </main>

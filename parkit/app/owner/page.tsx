@@ -1,4 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+
+export const instant = false;
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import {
@@ -14,7 +18,30 @@ import {
   ArrowRight,
 } from "lucide-react";
 
-export default function OwnerPage() {
+export default async function OwnerPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login?next=/owner");
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name, phone, role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!profile || !profile.role) {
+    redirect("/onboarding");
+  }
+
+  if (profile.role !== "owner") {
+    redirect("/driver");
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-[#F8FAFC]">
       <Header />
@@ -31,9 +58,14 @@ export default function OwnerPage() {
             </Link>
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
-                <span className="inline-block rounded-full bg-[#FFC93C]/20 px-3 py-1 text-xs font-bold text-[#FFC93C] mb-2">
-                  Space Owner Portal
-                </span>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="inline-block rounded-full bg-[#FFC93C]/20 px-3 py-1 text-xs font-bold text-[#FFC93C]">
+                    Space Owner Portal
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    Host: <strong className="text-white">{profile.full_name}</strong>
+                  </span>
+                </div>
                 <h1 className="text-3xl font-extrabold sm:text-4xl">
                   Turn Your Driveway into Income
                 </h1>
@@ -45,9 +77,9 @@ export default function OwnerPage() {
               {/* Status info */}
               <div className="rounded-[16px] bg-white/10 border border-white/10 p-4 text-xs text-slate-300 max-w-xs">
                 <span className="font-semibold text-white block mb-1">
-                  Route Status: Phase 1 Placeholder
+                  Host Account: {user.email}
                 </span>
-                Space creation wizard, calendar availability rules, and payout setups will be connected here.
+                Protected route active. Space creation wizard, calendar availability rules, and payout setups will connect here.
               </div>
             </div>
           </div>
@@ -133,16 +165,6 @@ export default function OwnerPage() {
                 Drivers check-in digitally with QR passes. Payouts are transferred automatically to your account.
               </p>
             </div>
-          </div>
-
-          {/* Development roadmap callout */}
-          <div className="mt-10 rounded-[16px] border border-dashed border-[#FFC93C] bg-[#FFC93C]/10 p-6 text-center">
-            <h4 className="text-base font-bold text-[#0B1F3A]">
-              🛠️ Space Management & Stripe Payout Engine Coming in Next Phase
-            </h4>
-            <p className="mt-1 text-xs text-slate-600 max-w-xl mx-auto">
-              This placeholder demonstrates the Host layout and design tokens. Supabase database tables for listings, photo storage buckets, and payment processing will follow.
-            </p>
           </div>
         </section>
       </main>
