@@ -144,13 +144,13 @@ export default async function OwnerPage() {
               </div>
 
               <div className="flex flex-col gap-2.5">
-                <button
-                  type="button"
+                <Link
+                  href="/owner/list-space"
                   className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#0B1F3A] text-sm font-bold text-white transition-all hover:bg-[#163359] shadow-soft"
                 >
                   <Upload className="h-4 w-4 text-[#2FD08A]" />
                   <span>Start Listing Your Space</span>
-                </button>
+                </Link>
                 <p className="text-[11px] text-center text-slate-400">
                   Free to list. No upfront fees.
                 </p>
