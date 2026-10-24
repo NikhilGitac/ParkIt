@@ -91,8 +91,14 @@ export default async function DriverPage() {
         redirect("/owner");
       }
       profile = dbProfile;
-    } catch (err) {
-      if (err instanceof Error && err.message.includes("NEXT_REDIRECT")) {
+    } catch (err: any) {
+      if (
+        err?.digest?.includes("DYNAMIC") ||
+        err?.digest?.includes("BAILOUT") ||
+        err?.digest?.includes("HANGING") ||
+        err?.message?.includes("NEXT_REDIRECT") ||
+        err?.message?.includes("cookies")
+      ) {
         throw err;
       }
       console.warn("DriverPage auth query error:", err);

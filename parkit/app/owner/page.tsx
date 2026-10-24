@@ -50,8 +50,14 @@ export default async function OwnerPage() {
         redirect("/driver");
       }
       profile = dbProfile;
-    } catch (err) {
-      if (err instanceof Error && err.message.includes("NEXT_REDIRECT")) {
+    } catch (err: any) {
+      if (
+        err?.digest?.includes("DYNAMIC") ||
+        err?.digest?.includes("BAILOUT") ||
+        err?.digest?.includes("HANGING") ||
+        err?.message?.includes("NEXT_REDIRECT") ||
+        err?.message?.includes("cookies")
+      ) {
         throw err;
       }
       console.warn("OwnerPage auth query error:", err);
