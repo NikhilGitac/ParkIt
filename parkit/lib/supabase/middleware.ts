@@ -48,10 +48,12 @@ export async function updateSession(request: NextRequest) {
 
     const { pathname } = request.nextUrl
 
-    // Protected routes: /driver, /owner, /onboarding
+    // Protected routes: /driver, /owner/dashboard, /onboarding
+    // Note: /owner/list-space allows pre-login drafting or driver-to-owner listing
     const isProtected =
       pathname.startsWith("/driver") ||
-      pathname.startsWith("/owner") ||
+      pathname.startsWith("/owner/dashboard") ||
+      pathname === "/owner" ||
       pathname.startsWith("/onboarding")
 
     if (!user && isProtected) {
@@ -73,7 +75,7 @@ export async function updateSession(request: NextRequest) {
       if (!profile || !profile.role) {
         url.pathname = "/onboarding"
       } else if (profile.role === "owner") {
-        url.pathname = "/owner"
+        url.pathname = "/owner/dashboard"
       } else {
         url.pathname = "/driver"
       }
@@ -81,7 +83,7 @@ export async function updateSession(request: NextRequest) {
     }
 
     // Role validation on protected portals
-    if (user && (pathname.startsWith("/driver") || pathname.startsWith("/owner"))) {
+    if (user && (pathname.startsWith("/driver") || pathname === "/owner" || pathname.startsWith("/owner/dashboard"))) {
       const { data: profile } = await supabase
         .from("profiles")
         .select("role")
@@ -96,11 +98,11 @@ export async function updateSession(request: NextRequest) {
 
       if (pathname.startsWith("/driver") && profile.role !== "driver") {
         const url = request.nextUrl.clone()
-        url.pathname = "/owner"
+        url.pathname = "/owner/dashboard"
         return NextResponse.redirect(url)
       }
 
-      if (pathname.startsWith("/owner") && profile.role !== "owner") {
+      if ((pathname === "/owner" || pathname.startsWith("/owner/dashboard")) && profile.role !== "owner") {
         const url = request.nextUrl.clone()
         url.pathname = "/driver"
         return NextResponse.redirect(url)
