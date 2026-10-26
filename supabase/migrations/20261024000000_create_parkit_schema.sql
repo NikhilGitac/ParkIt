@@ -272,18 +272,35 @@ CREATE POLICY "Drivers can create reviews for their bookings"
 -- ==============================================================================
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger AS $$
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
 BEGIN
   INSERT INTO public.profiles (id, full_name, phone, role)
   VALUES (
     NEW.id,
-    COALESCE(NEW.raw_user_meta_data->>'full_name', 'ParKit Member'),
-    NEW.raw_user_meta_data->>'phone',
-    COALESCE((NEW.raw_user_meta_data->>'role')::user_role, 'driver'::user_role)
-  );
+    COALESCE(NULLIF(NEW.raw_user_meta_data->>'full_name', ''), 'ParKit Member'),
+    NULLIF(NEW.raw_user_meta_data->>'phone', ''),
+    CASE 
+      WHEN NEW.raw_user_meta_data->>'role' = 'owner' THEN 'owner'::public.user_role
+      ELSE 'driver'::public.user_role
+    END
+  )
+  ON CONFLICT (id) DO UPDATE
+    SET full_name = COALESCE(EXCLUDED.full_name, public.profiles.full_name),
+        phone = COALESCE(EXCLUDED.phone, public.profiles.phone),
+        role = COALESCE(EXCLUDED.role, public.profiles.role),
+        updated_at = now();
+
   RETURN NEW;
+EXCEPTION
+  WHEN others THEN
+    RAISE WARNING 'handle_new_user error: %', SQLERRM;
+    RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- Trigger firing on every new user registration in Supabase Auth
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
