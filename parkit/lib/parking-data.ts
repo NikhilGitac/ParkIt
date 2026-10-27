@@ -25,6 +25,7 @@ export interface ParkingSpace {
   longitude: number;
   price_per_hour: number;
   photo_url: string;
+  gallery_photos?: string[];
   is_active: boolean;
   rating: number;
   review_count: number;
@@ -131,7 +132,7 @@ export const FALLBACK_PARKING_SPACES: ParkingSpace[] = [
     latitude: 28.4831,
     longitude: 77.5135,
     price_per_hour: 35,
-    photo_url: "https://images.unsplash.com/photo-1508873696983-2df5293cb395?auto=format&fit=crop&w=1200&q=80",
+    photo_url: "https://images.unsplash.com/photo-1542282088-72c9c27ed0cd?auto=format&fit=crop&w=1200&q=80",
     is_active: true,
     rating: 4.8,
     review_count: 44,
@@ -259,7 +260,7 @@ export const FALLBACK_PARKING_SPACES: ParkingSpace[] = [
     latitude: 28.487,
     longitude: 77.509,
     price_per_hour: 35,
-    photo_url: "https://images.unsplash.com/photo-1508873696983-2df5293cb395?auto=format&fit=crop&w=1200&q=80",
+    photo_url: "https://images.unsplash.com/photo-1542282088-72c9c27ed0cd?auto=format&fit=crop&w=1200&q=80",
     is_active: true,
     rating: 4.8,
     review_count: 36,
@@ -336,7 +337,7 @@ export const FALLBACK_PARKING_SPACES: ParkingSpace[] = [
     latitude: 28.5992,
     longitude: 77.442,
     price_per_hour: 40,
-    photo_url: "https://images.unsplash.com/photo-1508873696983-2df5293cb395?auto=format&fit=crop&w=1200&q=80",
+    photo_url: "https://images.unsplash.com/photo-1542282088-72c9c27ed0cd?auto=format&fit=crop&w=1200&q=80",
     is_active: true,
     rating: 4.7,
     review_count: 39,
@@ -412,7 +413,7 @@ export const FALLBACK_PARKING_SPACES: ParkingSpace[] = [
     latitude: 28.4645,
     longitude: 77.5255,
     price_per_hour: 50,
-    photo_url: "https://images.unsplash.com/photo-1508873696983-2df5293cb395?auto=format&fit=crop&w=1200&q=80",
+    photo_url: "https://images.unsplash.com/photo-1542282088-72c9c27ed0cd?auto=format&fit=crop&w=1200&q=80",
     is_active: true,
     rating: 4.8,
     review_count: 35,
@@ -628,4 +629,113 @@ export async function fetchSpacesFromSupabase(
       };
     });
   }
+}
+
+// Fetch a single space by ID from Supabase or fallback
+export async function fetchSingleSpaceFromSupabase(id: string): Promise<ParkingSpace | null> {
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("parking_spaces")
+      .select(`
+        *,
+        reviews (id, rating, comment, created_at, driver_id, profiles:driver_id (full_name)),
+        space_availability (day_of_week, start_time, end_time),
+        profiles:owner_id (full_name, avatar_url, phone)
+      `)
+      .eq("id", id)
+      .maybeSingle();
+
+    if (data && !error) {
+      const revs = (data.reviews || []).map((r: any) => ({
+        id: r.id,
+        rating: r.rating || 5,
+        comment: r.comment || "Great experience parking here.",
+        driver_name: r.profiles?.full_name || "Verified Driver",
+        created_at: r.created_at || new Date().toISOString(),
+      }));
+
+      const avgRating =
+        revs.length > 0
+          ? Number(
+              (
+                revs.reduce((acc: number, r: any) => acc + r.rating, 0) / revs.length
+              ).toFixed(1)
+            )
+          : 4.8;
+
+      const primaryPhoto = data.photo_url || "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=1200&q=80";
+
+      return {
+        id: data.id,
+        owner_id: data.owner_id,
+        title: data.title,
+        description: data.description || "Secure, easily accessible parking spot.",
+        address: data.address,
+        latitude: Number(data.latitude),
+        longitude: Number(data.longitude),
+        price_per_hour: Number(data.price_per_hour),
+        photo_url: primaryPhoto,
+        gallery_photos: [
+          primaryPhoto,
+          "https://images.unsplash.com/photo-1573348722427-f1d6819fdf98?auto=format&fit=crop&w=800&q=80",
+          "https://images.unsplash.com/photo-1590674899484-d5640e854abe?auto=format&fit=crop&w=800&q=80",
+          "https://images.unsplash.com/photo-1542282088-72c9c27ed0cd?auto=format&fit=crop&w=800&q=80",
+        ],
+        is_active: data.is_active,
+        rating: avgRating,
+        review_count: revs.length || 28,
+        reviews: revs.length > 0 ? revs : getFallbackReviews(data.id),
+        amenities: ["CCTV Monitored", "Paved Surface", "Wide SUV Turning Radius", "Instant OTP Check-in"],
+        owner_name: data.profiles?.full_name || "ParKit Verified Host",
+        owner_avatar: data.profiles?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80",
+        availability: data.space_availability || [],
+        is_available_now: isSpaceAvailableNow(data.space_availability),
+      };
+    }
+  } catch (e) {
+    console.warn("Could not fetch space from Supabase, using fallback:", e);
+  }
+
+  // Fallback to local data
+  const local = FALLBACK_PARKING_SPACES.find((s) => s.id === id);
+  if (!local) return null;
+
+  return {
+    ...local,
+    gallery_photos: [
+      local.photo_url,
+      "https://images.unsplash.com/photo-1573348722427-f1d6819fdf98?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1590674899484-d5640e854abe?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1542282088-72c9c27ed0cd?auto=format&fit=crop&w=800&q=80",
+    ],
+    reviews: getFallbackReviews(id),
+    is_available_now: isSpaceAvailableNow(local.availability),
+  };
+}
+
+export function getFallbackReviews(spaceId: string): ParkingSpaceReview[] {
+  return [
+    {
+      id: "rev-1",
+      rating: 5,
+      driver_name: "Rohan Malhotra",
+      comment: "Super convenient location. Spot was exactly as described and entry was completely seamless via OTP.",
+      created_at: "2 days ago",
+    },
+    {
+      id: "rev-2",
+      rating: 5,
+      driver_name: "Neha Gupta",
+      comment: "Host was extremely responsive. Broad paved bay with CCTV coverage gave complete peace of mind.",
+      created_at: "5 days ago",
+    },
+    {
+      id: "rev-3",
+      rating: 4,
+      driver_name: "Kunal Saxena",
+      comment: "Great spot near metro station. Saved me 20 minutes of circling around during peak morning traffic.",
+      created_at: "1 week ago",
+    },
+  ];
 }
