@@ -48,19 +48,17 @@ export async function updateSession(request: NextRequest) {
 
     const { pathname } = request.nextUrl
 
-    // Protected routes: /owner/dashboard, /owner, /onboarding, /driver/bookings
-    // Public browsing routes: /, /driver, /driver/space/*
+    // Protected routes: /onboarding, /driver/bookings
+    // Public & Demo Host routes: /, /driver, /driver/space/*, /owner/dashboard, /verify/*
     const isProtected =
       pathname.startsWith("/driver/bookings") ||
-      pathname.startsWith("/owner/dashboard") ||
-      pathname === "/owner" ||
-      pathname.startsWith("/onboarding")
+      pathname.startsWith("/onboarding");
 
     if (!user && isProtected) {
-      const url = request.nextUrl.clone()
-      url.pathname = "/login"
-      url.searchParams.set("next", pathname)
-      return NextResponse.redirect(url)
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("next", pathname);
+      return NextResponse.redirect(url);
     }
 
     // Redirect logged-in users away from auth pages
@@ -102,7 +100,7 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(url)
       }
 
-      if ((pathname === "/owner" || pathname.startsWith("/owner/dashboard")) && profile.role !== "owner") {
+      if (pathname === "/owner" && profile.role !== "owner") {
         const url = request.nextUrl.clone()
         url.pathname = "/driver"
         return NextResponse.redirect(url)
