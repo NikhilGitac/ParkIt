@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, memo } from "react";
+import { useEffect, useRef, memo } from "react";
 import { MapContainer, TileLayer, Marker, useMap, ZoomControl } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -136,17 +136,6 @@ function DriverMapInner({
     ? ([userLocation.lat, userLocation.lng] as [number, number])
     : fallbackCenter;
 
-  const [mapKey] = useState(() => "parkit-map-" + Math.random().toString(36).substring(2, 9));
-
-  useEffect(() => {
-    return () => {
-      const container = document.getElementById("parkit-leaflet-map");
-      if (container) {
-        (container as any)._leaflet_id = null;
-      }
-    };
-  }, []);
-
   return (
     <div className="relative w-full h-full">
       <style jsx global>{`
@@ -188,8 +177,6 @@ function DriverMapInner({
       `}</style>
 
       <MapContainer
-        key={mapKey}
-        id="parkit-leaflet-map"
         center={initialCenter}
         zoom={14}
         zoomControl={false}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, memo } from "react";
+import { memo } from "react";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -40,24 +40,11 @@ interface MiniSpaceMapProps {
 }
 
 function MiniSpaceMap({ latitude, longitude, title, address }: MiniSpaceMapProps) {
-  const [mapKey] = useState(() => "mini-map-" + Math.random().toString(36).substring(2, 9));
-
-  useEffect(() => {
-    return () => {
-      const container = document.getElementById("mini-leaflet-map");
-      if (container) {
-        (container as any)._leaflet_id = null;
-      }
-    };
-  }, []);
-
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
 
   return (
     <div className="relative w-full h-56 sm:h-64 rounded-2xl overflow-hidden border border-slate-200/90 shadow-soft">
       <MapContainer
-        key={mapKey}
-        id="mini-leaflet-map"
         center={[latitude, longitude]}
         zoom={15}
         zoomControl={false}
