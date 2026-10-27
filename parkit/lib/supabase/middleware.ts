@@ -48,10 +48,10 @@ export async function updateSession(request: NextRequest) {
 
     const { pathname } = request.nextUrl
 
-    // Protected routes: /driver, /owner/dashboard, /onboarding
-    // Note: /owner/list-space allows pre-login drafting or driver-to-owner listing
+    // Protected routes: /owner/dashboard, /owner, /onboarding, /driver/bookings
+    // Public browsing routes: /, /driver, /driver/space/*
     const isProtected =
-      pathname.startsWith("/driver") ||
+      pathname.startsWith("/driver/bookings") ||
       pathname.startsWith("/owner/dashboard") ||
       pathname === "/owner" ||
       pathname.startsWith("/onboarding")
