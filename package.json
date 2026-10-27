@@ -2,10 +2,13 @@
   "name": "parkit-workspace",
   "version": "0.1.0",
   "private": true,
+  "workspaces": [
+    "parkit"
+  ],
   "scripts": {
-    "dev": "npm run dev --prefix parkit",
-    "build": "npm run build --prefix parkit",
-    "start": "npm run start --prefix parkit",
-    "lint": "npm run lint --prefix parkit"
+    "dev": "npm run dev --workspace=parkit",
+    "build": "cd parkit && npm install && npm run build",
+    "start": "npm run start --workspace=parkit",
+    "lint": "npm run lint --workspace=parkit"
   }
 }
