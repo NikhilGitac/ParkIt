@@ -11,6 +11,9 @@ interface BottomSheetProps {
   spaces: ParkingSpace[];
   bestMatchId: string | null;
   selectedSpace: ParkingSpace | null;
+  bestMatchExplanation?: string;
+  bestMatchScore?: number;
+  aiGenerated?: boolean;
   onSelectSpace: (space: ParkingSpace) => void;
   onOpenFilters: () => void;
 }
@@ -19,6 +22,9 @@ export function BottomSheet({
   spaces,
   bestMatchId,
   selectedSpace,
+  bestMatchExplanation,
+  bestMatchScore,
+  aiGenerated = false,
   onSelectSpace,
   onOpenFilters,
 }: BottomSheetProps) {
@@ -162,6 +168,35 @@ export function BottomSheet({
         ref={cardListRef}
         className="flex-1 overflow-y-auto px-4 py-3 space-y-3.5 overscroll-contain"
       >
+        {/* Requirement 6: Best Match Explanation Banner on Driver Bottom Sheet */}
+        {bestMatchExplanation && spaces.length > 0 && (
+          <div className="p-3 bg-gradient-to-r from-amber-50 to-emerald-50 rounded-2xl border border-amber-200/90 shadow-xs flex items-start gap-2.5 animate-in fade-in duration-200">
+            <div className="w-7 h-7 rounded-xl bg-[#0B1F3A] text-[#FFC93C] flex items-center justify-center shrink-0 shadow-sm mt-0.5">
+              <Sparkles className="w-4 h-4 fill-[#FFC93C]" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-950 bg-[#FFC93C] px-2 py-0.2 rounded-full">
+                  AI Recommendation
+                </span>
+                {aiGenerated && (
+                  <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-1.5 py-0.2 rounded">
+                    Gemini Powered
+                  </span>
+                )}
+                {bestMatchScore !== undefined && (
+                  <span className="text-[10px] font-bold text-slate-500 ml-auto">
+                    Score: {bestMatchScore}/100
+                  </span>
+                )}
+              </div>
+              <p className="text-xs font-bold text-[#0B1F3A] leading-snug">
+                {bestMatchExplanation}
+              </p>
+            </div>
+          </div>
+        )}
+
         {spaces.length === 0 ? (
           <div className="py-12 px-4 text-center">
             <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
@@ -190,6 +225,8 @@ export function BottomSheet({
                   space={space}
                   isBestMatch={isBest}
                   isSelected={isSelected}
+                  matchExplanation={isBest ? bestMatchExplanation : undefined}
+                  aiGenerated={isBest ? aiGenerated : false}
                   onHover={() => onSelectSpace(space)}
                   onSelect={() => onSelectSpace(space)}
                 />

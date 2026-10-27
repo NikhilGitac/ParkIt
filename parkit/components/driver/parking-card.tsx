@@ -10,6 +10,8 @@ interface ParkingCardProps {
   space: ParkingSpace;
   isBestMatch?: boolean;
   isSelected?: boolean;
+  matchExplanation?: string;
+  aiGenerated?: boolean;
   onHover?: () => void;
   onSelect?: () => void;
 }
@@ -18,6 +20,8 @@ export function ParkingCard({
   space,
   isBestMatch = false,
   isSelected = false,
+  matchExplanation,
+  aiGenerated = false,
   onHover,
   onSelect,
 }: ParkingCardProps) {
@@ -120,6 +124,14 @@ export function ParkingCard({
                 </span>
               )}
             </div>
+
+            {/* AI / Smart Match Explanation Banner */}
+            {isBestMatch && matchExplanation && (
+              <div className="mt-2.5 p-2 bg-amber-50/90 border border-amber-200/80 rounded-xl text-[11px] font-semibold text-[#0B1F3A] flex items-center gap-1.5 shadow-xs">
+                <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span className="line-clamp-2">{matchExplanation}</span>
+              </div>
+            )}
           </div>
 
           {/* Pricing & CTA Footer */}

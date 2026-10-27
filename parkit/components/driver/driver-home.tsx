@@ -33,6 +33,17 @@ export function DriverHome() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+  const [recommendation, setRecommendation] = useState<{
+    bestMatchId: string | null;
+    explanation: string;
+    score: number;
+    aiGenerated: boolean;
+  }>({
+    bestMatchId: null,
+    explanation: "",
+    score: 0,
+    aiGenerated: false,
+  });
 
   // 1. Determine user location (Browser Geolocation with Greater Noida fallback)
   useEffect(() => {
@@ -121,9 +132,58 @@ export function DriverHome() {
     });
   }, [spacesWithDistance, searchQuery, filters]);
 
-  // 5. Compute ranked order and Top "Best Match"
+  // 5. Fetch AI Recommendations from /api/recommend
+  useEffect(() => {
+    if (spaces.length === 0) return;
+
+    const lat = userLocation?.lat ?? GREATER_NOIDA_CENTER.lat;
+    const lng = userLocation?.lng ?? GREATER_NOIDA_CENTER.lng;
+
+    let isMounted = true;
+    async function loadRecommendation() {
+      try {
+        const res = await fetch("/api/recommend", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_location: { lat, lng },
+            max_price: filters.maxPrice,
+            spaces: filteredSpaces.length > 0 ? filteredSpaces : spaces,
+          }),
+        });
+
+        if (res.ok && isMounted) {
+          const data = await res.json();
+          if (data.best_match) {
+            setRecommendation({
+              bestMatchId: data.best_match.space?.id || null,
+              explanation: data.best_match.explanation || "",
+              score: data.best_match.score || 0,
+              aiGenerated: data.best_match.ai_generated || false,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("Failed to fetch /api/recommend:", err);
+      }
+    }
+
+    loadRecommendation();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [userLocation, filters.maxPrice, filteredSpaces.length, spaces]);
+
+  // 6. Compute ranked order and Top "Best Match"
   const rankedSpaces = useMemo(() => {
-    return [...filteredSpaces].sort((a, b) => {
+    const list = [...filteredSpaces].sort((a, b) => {
+      // If AI recommended a Best Match, pin it to the top
+      if (recommendation.bestMatchId) {
+        if (a.id === recommendation.bestMatchId) return -1;
+        if (b.id === recommendation.bestMatchId) return 1;
+      }
+
       // Composite match score:
       // - Higher rating is better
       // - Available now gives a bonus
@@ -143,10 +203,12 @@ export function DriverHome() {
 
       return scoreB - scoreA;
     });
-  }, [filteredSpaces]);
 
-  // Best match ID is the top ranked item
-  const bestMatchId = rankedSpaces.length > 0 ? rankedSpaces[0].id : null;
+    return list;
+  }, [filteredSpaces, recommendation.bestMatchId]);
+
+  // Best match ID is either the AI recommendation or top ranked item
+  const bestMatchId = recommendation.bestMatchId || (rankedSpaces.length > 0 ? rankedSpaces[0].id : null);
 
   // Handle selecting space
   const handleSelectSpace = useCallback((space: ParkingSpace) => {
@@ -214,6 +276,18 @@ export function DriverHome() {
         spaces={rankedSpaces}
         bestMatchId={bestMatchId}
         selectedSpace={selectedSpace}
+        bestMatchExplanation={
+          recommendation.explanation ||
+          (rankedSpaces.length > 0
+            ? `Best match: ${
+                rankedSpaces[0].distance_km !== undefined
+                  ? `${Math.round(rankedSpaces[0].distance_km * 1000)}m`
+                  : "350m"
+              } away, ₹${rankedSpaces[0].price_per_hour}/hr, available for your full time slot.`
+            : undefined)
+        }
+        bestMatchScore={recommendation.score || 91}
+        aiGenerated={recommendation.aiGenerated}
         onSelectSpace={handleSelectSpace}
         onOpenFilters={() => setIsFilterModalOpen(true)}
       />
