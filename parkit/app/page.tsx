@@ -219,53 +219,140 @@ export default function Home() {
           </div>
         </section>
 
-        {/* HOW IT WORKS SECTION */}
-        <section id="how-it-works" className="py-20 bg-white border-t border-slate-200/70">
+        {/* HOW IT WORKS SECTION - DEDICATED FOR DRIVERS AND OWNERS */}
+        <section id="how-it-works" className="py-20 sm:py-24 bg-white border-t border-slate-200/70">
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <div className="text-center max-w-3xl mx-auto mb-16">
-              <span className="text-xs font-bold uppercase tracking-wider text-[#0B1F3A] bg-slate-100 px-3 py-1 rounded-full">
-                Simple & Seamless
+              <span className="text-xs font-bold uppercase tracking-wider text-[#0B1F3A] bg-slate-100 px-3.5 py-1 rounded-full border border-slate-200">
+                Simple & Frictionless
               </span>
-              <h2 className="mt-4 text-3xl font-extrabold text-[#0B1F3A] sm:text-4xl">
+              <h2 className="mt-4 text-3xl font-extrabold text-[#0B1F3A] sm:text-4xl tracking-tight">
                 How ParKit Works
               </h2>
-              <p className="mt-4 text-base text-slate-600">
-                A streamlined experience whether you are looking for a spot or sharing your own space.
+              <p className="mt-3 text-sm sm:text-base text-slate-600">
+                A seamless urban mobility ecosystem tailored for both drivers and private space hosts.
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
-              {/* Step 1 */}
-              <div className="relative rounded-[16px] bg-[#F8FAFC] p-8 border border-slate-200/80 shadow-soft">
-                <span className="absolute -top-4 left-8 inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#0B1F3A] text-sm font-bold text-white">
-                  1
-                </span>
-                <h3 className="mt-2 text-lg font-bold text-[#0B1F3A]">Search & Compare</h3>
-                <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                  Enter your destination or current location to browse verified parking bays, prices, and amenities on the interactive map.
-                </p>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+              {/* FLOW 1: FOR DRIVERS */}
+              <div className="rounded-3xl bg-slate-50/70 p-6 sm:p-8 border border-slate-200/90 shadow-soft space-y-6">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-[#0B1F3A] text-[#2FD08A] flex items-center justify-center font-bold shadow-xs">
+                      <Car className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-lg text-[#0B1F3A]">For Drivers</h3>
+                      <p className="text-xs text-slate-500">Guaranteed parking in 3 easy steps</p>
+                    </div>
+                  </div>
+                  <Link
+                    href="/driver"
+                    className="text-xs font-bold text-[#0B1F3A] hover:text-[#26b878] inline-flex items-center gap-1 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs"
+                  >
+                    <span>Launch Map</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex gap-4 items-start">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#0B1F3A] text-xs font-extrabold text-white shrink-0 shadow-xs">
+                      1
+                    </span>
+                    <div>
+                      <h4 className="font-bold text-sm text-[#0B1F3A]">Search & AI Recommendation</h4>
+                      <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                        Explore OpenStreetMap parking pins near you. ParKit's AI concierge recommends the best match based on proximity, hourly rate, and operating windows.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 items-start">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#2FD08A] text-xs font-extrabold text-[#0B1F3A] shrink-0 shadow-xs">
+                      2
+                    </span>
+                    <div>
+                      <h4 className="font-bold text-sm text-[#0B1F3A]">Lock Slot & Pay with UPI</h4>
+                      <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                        Pick your start time and duration. Database overlap locks prevent double-booking while you complete the demo-safe instant UPI checkout.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 items-start">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#FFC93C] text-xs font-extrabold text-[#0B1F3A] shrink-0 shadow-xs">
+                      3
+                    </span>
+                    <div>
+                      <h4 className="font-bold text-sm text-[#0B1F3A]">Scan QR Pass & Gate OTP</h4>
+                      <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                        Receive a scannable QR pass and 6-digit gate OTP. Drive in, present your code to the lot owner, and park with zero circling.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Step 2 */}
-              <div className="relative rounded-[16px] bg-[#F8FAFC] p-8 border border-slate-200/80 shadow-soft">
-                <span className="absolute -top-4 left-8 inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#2FD08A] text-sm font-bold text-[#0B1F3A]">
-                  2
-                </span>
-                <h3 className="mt-2 text-lg font-bold text-[#0B1F3A]">Reserve with 1-Click</h3>
-                <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                  Lock your spot with transparent upfront pricing. No hidden meter charges or sudden expired ticket penalties.
-                </p>
-              </div>
+              {/* FLOW 2: FOR SPACE OWNERS */}
+              <div className="rounded-3xl bg-slate-50/70 p-6 sm:p-8 border border-slate-200/90 shadow-soft space-y-6">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-[#2FD08A] text-[#0B1F3A] flex items-center justify-center font-bold shadow-xs">
+                      <Building2 className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="font-extrabold text-lg text-[#0B1F3A]">For Space Owners</h3>
+                      <p className="text-xs text-slate-500">Monetize idle driveways & bays</p>
+                    </div>
+                  </div>
+                  <Link
+                    href="/owner/dashboard"
+                    className="text-xs font-bold text-[#0B1F3A] hover:text-[#26b878] inline-flex items-center gap-1 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs"
+                  >
+                    <span>Host Hub</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
 
-              {/* Step 3 */}
-              <div className="relative rounded-[16px] bg-[#F8FAFC] p-8 border border-slate-200/80 shadow-soft">
-                <span className="absolute -top-4 left-8 inline-flex h-8 w-8 items-center justify-center rounded-full bg-[#FFC93C] text-sm font-bold text-[#0B1F3A]">
-                  3
-                </span>
-                <h3 className="mt-2 text-lg font-bold text-[#0B1F3A]">Scan & Park</h3>
-                <p className="mt-2 text-sm text-slate-600 leading-relaxed">
-                  Arrive at your spot, scan your digital QR pass, and park with confidence. Extensions and checkouts happen smoothly in-app.
-                </p>
+                <div className="space-y-4">
+                  <div className="flex gap-4 items-start">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#0B1F3A] text-xs font-extrabold text-white shrink-0 shadow-xs">
+                      1
+                    </span>
+                    <div>
+                      <h4 className="font-bold text-sm text-[#0B1F3A]">List in 2 Minutes</h4>
+                      <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                        Pin your driveway or private bay on the map, set hourly rates (₹20 - ₹100/hr), and define custom operating days and hours.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 items-start">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#2FD08A] text-xs font-extrabold text-[#0B1F3A] shrink-0 shadow-xs">
+                      2
+                    </span>
+                    <div>
+                      <h4 className="font-bold text-sm text-[#0B1F3A]">Real-time Booking Stream</h4>
+                      <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                        Driver reservations stream directly into your host dashboard via Supabase Realtime without manual phone calls or message hassle.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 items-start">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#FFC93C] text-xs font-extrabold text-[#0B1F3A] shrink-0 shadow-xs">
+                      3
+                    </span>
+                    <div>
+                      <h4 className="font-bold text-sm text-[#0B1F3A]">Verify OTP & Track Earnings</h4>
+                      <p className="mt-1 text-xs text-slate-600 leading-relaxed">
+                        Validate the driver's 6-digit OTP code on the verification screen to grant gate entry. Monitor total earnings with automated payouts.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
