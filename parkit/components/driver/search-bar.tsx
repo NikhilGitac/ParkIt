@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Search, SlidersHorizontal, X, ArrowLeft, Car, Check } from "lucide-react";
+import { Search, SlidersHorizontal, X, ArrowLeft, Car, Check, Sparkles } from "lucide-react";
 import { FilterState } from "./filter-modal";
 
 interface SearchBarProps {
@@ -72,6 +72,7 @@ export function FloatingSearchBar({
           <div className="h-6 w-px bg-slate-200 mx-0.5"></div>
 
           {/* Filter Button */}
+          {/* Filter Button */}
           <button
             type="button"
             onClick={onOpenFilterModal}
@@ -90,10 +91,29 @@ export function FloatingSearchBar({
               </span>
             )}
           </button>
+
+          {/* AI Assistant Button */}
+          <Link
+            href="/driver/assistant"
+            title="Ask ParKit AI Concierge"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-extrabold bg-[#0B1F3A] hover:bg-[#163359] text-[#2FD08A] shadow-sm transition-all"
+          >
+            <Sparkles className="w-3.5 h-3.5 fill-[#2FD08A]" />
+            <span className="hidden sm:inline">AI Concierge</span>
+          </Link>
         </div>
 
         {/* Quick Filter Horizontal Scroll Chips */}
         <div className="flex items-center gap-1.5 sm:gap-2 mt-2 overflow-x-auto no-scrollbar py-1 px-0.5">
+          {/* Quick Chip: AI Concierge */}
+          <Link
+            href="/driver/assistant"
+            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-extrabold bg-[#0B1F3A] text-[#2FD08A] border border-[#2FD08A]/40 shadow-xs hover:bg-[#163359] transition-all"
+          >
+            <Sparkles className="w-3.5 h-3.5 fill-[#2FD08A]" />
+            <span>Ask AI Assistant</span>
+          </Link>
+
           {/* Quick Chip: Available Now */}
           <button
             type="button"
