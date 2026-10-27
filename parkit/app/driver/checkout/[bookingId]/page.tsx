@@ -12,9 +12,9 @@ export const metadata: Metadata = {
 export default async function CheckoutPage({
   params,
 }: {
-  params: Promise<{ spaceId: string }>;
+  params: Promise<{ bookingId: string }>;
 }) {
-  const { spaceId } = await params;
+  const { bookingId } = await params;
 
   return (
     <Suspense
@@ -24,7 +24,7 @@ export default async function CheckoutPage({
         </div>
       }
     >
-      <CheckoutView spaceId={spaceId} />
+      <CheckoutView id={bookingId} />
     </Suspense>
   );
 }
