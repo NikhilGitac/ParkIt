@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useMemo, useCallback } from "react";
+import Link from "next/link";
 import dynamic from "next/dynamic";
+import { createClient } from "@/lib/supabase/client";
 import {
   ParkingSpace,
   GREATER_NOIDA_CENTER,
@@ -11,7 +13,7 @@ import {
 import { FloatingSearchBar } from "./search-bar";
 import { BottomSheet } from "./bottom-sheet";
 import { FilterModal, FilterState, DEFAULT_FILTERS } from "./filter-modal";
-import { Loader2, Car, Compass, AlertCircle } from "lucide-react";
+import { Loader2, Car, Compass, AlertCircle, ArrowLeft } from "lucide-react";
 
 // Dynamically import Leaflet Map to avoid SSR errors
 const DriverMap = dynamic(() => import("./driver-map"), {
@@ -73,23 +75,44 @@ export function DriverHome() {
     }
   }, []);
 
-  // 2. Fetch parking spaces once location is resolved
-  useEffect(() => {
+  // 2. Fetch parking spaces with Realtime Supabase updates and focus listener
+  const loadData = useCallback(async () => {
     const lat = userLocation ? userLocation.lat : GREATER_NOIDA_CENTER.lat;
     const lng = userLocation ? userLocation.lng : GREATER_NOIDA_CENTER.lng;
 
-    async function loadData() {
-      setLoading(true);
-      const data = await fetchSpacesFromSupabase(lat, lng);
-      setSpaces(data);
-      if (data.length > 0 && !selectedSpace) {
-        setSelectedSpace(data[0]);
-      }
-      setLoading(false);
+    const data = await fetchSpacesFromSupabase(lat, lng);
+    setSpaces(data);
+    if (data.length > 0 && !selectedSpace) {
+      setSelectedSpace(data[0]);
     }
+    setLoading(false);
+  }, [userLocation, selectedSpace]);
 
+  useEffect(() => {
     loadData();
-  }, [userLocation]);
+
+    // Re-fetch when user navigates back to /driver without manual refresh
+    const handleFocus = () => loadData();
+    window.addEventListener("focus", handleFocus);
+
+    // Realtime channel for new spaces published in Supabase
+    const supabase = createClient();
+    const channel = supabase
+      .channel("driver-map-spaces-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "parking_spaces" },
+        () => {
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      supabase.removeChannel(channel);
+    };
+  }, [loadData]);
 
   // 3. Recalculate distances if userLocation updates
   const spacesWithDistance = useMemo(() => {
@@ -247,6 +270,18 @@ export function DriverHome() {
 
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-slate-900 select-none">
+      {/* Dedicated Desktop Top-Left Back Navigation */}
+      <div className="hidden md:block absolute top-5 left-6 z-[1000] pointer-events-auto">
+        <Link
+          href="/"
+          title="Back to Home"
+          className="inline-flex items-center gap-2 bg-white/95 backdrop-blur-md hover:bg-white text-[#0B1F3A] font-bold text-xs px-3.5 py-2.5 rounded-2xl shadow-soft border border-slate-200/90 transition-all hover:shadow-soft-lg hover:-translate-x-0.5 active:scale-95 group cursor-pointer"
+        >
+          <ArrowLeft className="w-4 h-4 stroke-[2.5] text-[#0B1F3A] transition-transform group-hover:-translate-x-1" />
+          <span>Back to Home</span>
+        </Link>
+      </div>
+
       {/* 1. Floating Top Search Bar with Quick Filter Chips */}
       <FloatingSearchBar
         searchQuery={searchQuery}

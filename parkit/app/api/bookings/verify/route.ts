@@ -3,6 +3,21 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createClient();
+
+    // 1. Enforce authenticated session on the server
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Unauthorized. You must be signed in as a host to verify driver check-ins." },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const { booking_id, otp_code } = body;
 
@@ -21,9 +36,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await createClient();
+    // 2. Fetch booking and verify ownership of the space
+    const { data: booking, error: fetchErr } = await supabase
+      .from("bookings")
+      .select("id, space_id, driver_id, status, payment_status, otp_code, start_time, end_time, parking_spaces:space_id (owner_id)")
+      .eq("id", booking_id)
+      .maybeSingle();
 
-    // 1. Try invoking database RPC verify_booking_checkin
+    if (fetchErr) {
+      return NextResponse.json(
+        { error: "Database error retrieving booking: " + fetchErr.message },
+        { status: 503 }
+      );
+    }
+
+    if (!booking) {
+      return NextResponse.json(
+        { error: "Booking reference not found in Supabase" },
+        { status: 404 }
+      );
+    }
+
+    const spaceOwnerId = (booking.parking_spaces as any)?.owner_id;
+    if (spaceOwnerId && spaceOwnerId !== user.id) {
+      return NextResponse.json(
+        { error: "Forbidden. You can only verify check-ins for parking spaces that you own." },
+        { status: 403 }
+      );
+    }
+
+    // 3. Try invoking database RPC verify_booking_checkin
     const { data: rpcData, error: rpcError } = await supabase.rpc("verify_booking_checkin", {
       p_booking_id: booking_id,
       p_otp_code: cleanOtp,
@@ -55,28 +97,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 2. Fallback query verification
-    const { data: booking, error: fetchErr } = await supabase
-      .from("bookings")
-      .select("id, space_id, driver_id, status, payment_status, otp_code, start_time, end_time")
-      .eq("id", booking_id)
-      .maybeSingle();
-
-    // Also check memory store if not in Supabase
-    let localBooking = booking;
-    if (!localBooking && typeof globalThis.__PARKIT_DEMO_BOOKINGS !== "undefined") {
-      localBooking = globalThis.__PARKIT_DEMO_BOOKINGS.find((b) => b.id === booking_id) as any;
-    }
-
-    if (!localBooking) {
-      return NextResponse.json(
-        { error: "Booking reference not found" },
-        { status: 404 }
-      );
-    }
-
-    // Check states: pending_payment, confirmed, checked_in, completed, cancelled
-    if (localBooking.status === "checked_in") {
+    // 4. Fallback verification directly on Supabase bookings table
+    if (booking.status === "checked_in") {
       return NextResponse.json({
         success: true,
         already_checked_in: true,
@@ -85,21 +107,21 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (localBooking.payment_status !== "paid" || localBooking.status === "pending_payment") {
+    if (booking.payment_status !== "paid" || booking.status === "pending_payment") {
       return NextResponse.json(
         { error: "Cannot check in: Booking has not been paid yet (status: pending_payment)." },
         { status: 400 }
       );
     }
 
-    if (localBooking.status === "cancelled") {
+    if (booking.status === "cancelled") {
       return NextResponse.json(
         { error: "Cannot check in: This booking was cancelled." },
         { status: 400 }
       );
     }
 
-    if (localBooking.status === "completed") {
+    if (booking.status === "completed") {
       return NextResponse.json(
         { error: "Cannot check in: This booking has already ended and was completed." },
         { status: 400 }
@@ -107,15 +129,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate OTP match
-    if (String(localBooking.otp_code).trim() !== cleanOtp) {
+    if (String(booking.otp_code).trim() !== cleanOtp) {
       return NextResponse.json(
         { error: "Invalid OTP code. Please enter the correct 6-digit code provided by the driver." },
         { status: 400 }
       );
     }
 
-    // OTP matches: update status to checked_in
-    await supabase
+    // OTP matches: update status to checked_in in Supabase
+    const { error: updateErr } = await supabase
       .from("bookings")
       .update({
         status: "checked_in",
@@ -123,11 +145,11 @@ export async function POST(request: NextRequest) {
       })
       .eq("id", booking_id);
 
-    if (typeof globalThis.__PARKIT_DEMO_BOOKINGS !== "undefined") {
-      const idx = globalThis.__PARKIT_DEMO_BOOKINGS.findIndex((b) => b.id === booking_id);
-      if (idx !== -1) {
-        globalThis.__PARKIT_DEMO_BOOKINGS[idx].status = "checked_in";
-      }
+    if (updateErr) {
+      return NextResponse.json(
+        { error: "Failed to update check-in status in Supabase: " + updateErr.message },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({

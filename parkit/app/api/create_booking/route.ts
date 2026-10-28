@@ -1,30 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-
-interface LocalBookingRecord {
-  id: string;
-  space_id: string;
-  driver_id: string;
-  start_time: string;
-  end_time: string;
-  total_price: number;
-  status: string;
-  payment_status: string;
-  otp_code: string;
-}
-
-declare global {
-  var __PARKIT_DEMO_BOOKINGS: LocalBookingRecord[] | undefined;
-}
-
-if (!globalThis.__PARKIT_DEMO_BOOKINGS) {
-  globalThis.__PARKIT_DEMO_BOOKINGS = [];
-}
+import {
+  FALLBACK_INSURANCE_PLANS,
+  generatePolicyNumber,
+  InsurancePlan,
+} from "@/lib/insurance-data";
 
 export async function POST(request: NextRequest) {
   try {
+    const supabase = await createClient();
+
+    // 1. Enforce authenticated session on the server
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Unauthorized. You must be logged in to reserve a parking space." },
+        { status: 401 }
+      );
+    }
+
+    // Never trust client-sent driver_id; strictly derive from authenticated user
+    const driverId = user.id;
+
     const body = await request.json();
-    const { space_id, start_time, end_time, driver_id: providedDriverId } = body;
+    const { space_id, start_time, end_time, insurance_plan_id } = body;
 
     if (!space_id || !start_time || !end_time) {
       return NextResponse.json(
@@ -38,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
       return NextResponse.json(
-        { error: "Invalid ISO date string provided for start_time or end_time" },
+        { error: "Invalid date format provided for start_time or end_time." },
         { status: 400 }
       );
     }
@@ -50,126 +53,59 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check active memory overlap
-    const memoryOverlap = (globalThis.__PARKIT_DEMO_BOOKINGS || []).some(
-      (b) =>
-        b.space_id === space_id &&
-        ["pending_payment", "confirmed", "checked_in"].includes(b.status) &&
-        new Date(b.start_time) < endDate &&
-        new Date(b.end_time) > startDate
-    );
-
-    if (memoryOverlap) {
-      return NextResponse.json(
-        { error: "This slot is no longer available." },
-        { status: 409 }
-      );
-    }
-
-    const supabase = await createClient();
-
-    // 1. Identify driver_id
-    let driverId = providedDriverId;
-    if (!driverId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        driverId = user.id;
-      } else {
-        // Fallback to first demo driver profile for guest/demo browsing
-        const { data: demoDriver } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("role", "driver")
-          .limit(1)
-          .maybeSingle();
-
-        if (demoDriver) {
-          driverId = demoDriver.id;
-        } else {
-          // If no driver profile exists yet, use deterministic demo driver id
-          driverId = "d0000000-0000-0000-0000-000000000001";
-        }
-      }
-    }
-
-    // 2. Try invoking the atomic database function `create_booking`
+    // 2. Try invoking the atomic database procedure `create_booking`
     const { data: rpcData, error: rpcError } = await supabase.rpc("create_booking", {
       p_space_id: space_id,
       p_start_time: startDate.toISOString(),
       p_end_time: endDate.toISOString(),
       p_driver_id: driverId,
+      p_insurance_plan_id: insurance_plan_id || null,
     });
 
     if (!rpcError && rpcData) {
       return NextResponse.json(rpcData);
     }
 
+    // If RPC returned a known business error (conflict, availability, inactive)
     const isRpcMissing =
       rpcError &&
       (rpcError.code === "PGRST202" ||
         rpcError.message?.toLowerCase().includes("could not find the function") ||
-        rpcError.message?.toLowerCase().includes("does not exist"));
+        rpcError.message?.toLowerCase().includes("does not exist") ||
+        rpcError.message?.toLowerCase().includes("too many arguments"));
 
-    // If RPC returned a known business error (such as conflict or availability)
     if (rpcError && !isRpcMissing) {
-      if (rpcError.code === "P0001") {
+      if (rpcError.code === "P0001" || rpcError.message?.toLowerCase().includes("no longer available")) {
         return NextResponse.json(
           { error: "This slot is no longer available." },
           { status: 409 }
         );
       }
-
-      const isConflict =
-        rpcError.message.toLowerCase().includes("slot is no longer available") ||
-        rpcError.message.toLowerCase().includes("conflict");
-
       return NextResponse.json(
         { error: rpcError.message },
-        { status: isConflict ? 409 : 400 }
+        { status: 400 }
       );
     }
 
-    // 3. Fallback to transactional query-level validation if RPC is not yet registered in remote Postgres
-    // Check 1: Space existence and active status
+    // 3. Direct Supabase transactional check if RPC is not present
     const { data: space, error: spaceErr } = await supabase
       .from("parking_spaces")
       .select("id, is_active, price_per_hour, space_availability(*)")
       .eq("id", space_id)
       .maybeSingle();
 
-    if (spaceErr || !space) {
-      // If table is empty or offline, simulate atomic success for demo space
-      const durationHours = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
-      const rate = 45;
-      const calculatedTotal = Number((durationHours * rate).toFixed(2));
-      const simulatedOtp = String(Math.floor(100000 + Math.random() * 900000));
-      const simulatedId = "bk-" + Math.random().toString(36).substring(2, 11);
+    if (spaceErr) {
+      return NextResponse.json(
+        { error: "Database error connecting to Supabase: " + spaceErr.message },
+        { status: 503 }
+      );
+    }
 
-      const record: LocalBookingRecord = {
-        id: simulatedId,
-        space_id,
-        driver_id: driverId,
-        start_time: startDate.toISOString(),
-        end_time: endDate.toISOString(),
-        total_price: calculatedTotal,
-        status: "pending_payment",
-        payment_status: "unpaid",
-        otp_code: simulatedOtp,
-      };
-      globalThis.__PARKIT_DEMO_BOOKINGS?.push(record);
-
-      return NextResponse.json({
-        success: true,
-        booking_id: simulatedId,
-        space_id,
-        driver_id: driverId,
-        start_time: startDate.toISOString(),
-        end_time: endDate.toISOString(),
-        total_price: calculatedTotal,
-        status: "pending_payment",
-        payment_status: "unpaid",
-        otp_code: simulatedOtp,
-      });
+    if (!space) {
+      return NextResponse.json(
+        { error: "Parking space not found in database." },
+        { status: 404 }
+      );
     }
 
     if (!space.is_active) {
@@ -179,7 +115,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check 2: Within space availability windows
+    // Check availability windows
     const dayOfWeek = startDate.getDay();
     const availabilitySlots = space.space_availability || [];
     if (availabilitySlots.length > 0) {
@@ -206,8 +142,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check 3: Check overlapping bookings with status in ('pending_payment', 'confirmed', 'checked_in')
-    // Condition: existing.start_time < new.end_time AND existing.end_time > new.start_time
+    // Check overlapping bookings in Supabase
     const { data: overlapping, error: overlapErr } = await supabase
       .from("bookings")
       .select("id, status")
@@ -217,6 +152,13 @@ export async function POST(request: NextRequest) {
       .gt("end_time", startDate.toISOString())
       .limit(1);
 
+    if (overlapErr) {
+      return NextResponse.json(
+        { error: "Database error checking slot availability: " + overlapErr.message },
+        { status: 503 }
+      );
+    }
+
     if (overlapping && overlapping.length > 0) {
       return NextResponse.json(
         { error: "This slot is no longer available." },
@@ -224,13 +166,34 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4. Calculate total price: duration * hourly price
+    // 4. Calculate total price and insurance premium strictly server-side
     const durationHours = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60);
     const hourlyPrice = Number(space.price_per_hour);
-    const totalPrice = Number((durationHours * hourlyPrice).toFixed(2));
-    const otpCode = String(Math.floor(100000 + Math.random() * 900000));
 
-    // 5. Insert booking with status pending_payment and payment_status unpaid
+    // Fetch insurance plan server-side; NEVER trust client-supplied premium amounts
+    let plan: InsurancePlan | undefined;
+    if (insurance_plan_id) {
+      const { data: dbPlan } = await supabase
+        .from("insurance_plans")
+        .select("*")
+        .eq("id", insurance_plan_id)
+        .maybeSingle();
+      if (dbPlan) plan = dbPlan;
+      if (!plan) {
+        plan = FALLBACK_INSURANCE_PLANS.find((p) => p.id === insurance_plan_id);
+      }
+    }
+
+    if (!plan) {
+      plan = FALLBACK_INSURANCE_PLANS[0]; // Default: ParkIt Protect Basic
+    }
+
+    const insurancePremium = Number((plan.premium_flat + durationHours * plan.premium_per_hour).toFixed(2));
+    const totalPrice = Number(((durationHours * hourlyPrice) + insurancePremium).toFixed(2));
+    const otpCode = String(Math.floor(100000 + Math.random() * 900000));
+    const policyNumber = generatePolicyNumber();
+
+    // 5. Insert booking into Supabase
     const { data: newBooking, error: insertErr } = await supabase
       .from("bookings")
       .insert({
@@ -242,19 +205,21 @@ export async function POST(request: NextRequest) {
         status: "pending_payment",
         payment_status: "unpaid",
         otp_code: otpCode,
+        insurance_plan_id: plan.id,
+        insurance_premium: insurancePremium,
+        policy_number: policyNumber,
+        insurance_status: "active",
       })
-      .select("id, space_id, driver_id, start_time, end_time, total_price, status, payment_status, otp_code")
+      .select("id, space_id, driver_id, start_time, end_time, total_price, status, payment_status, otp_code, insurance_plan_id, insurance_premium, policy_number, insurance_status")
       .single();
 
     if (insertErr || !newBooking) {
-      console.error("Booking insert error:", insertErr);
       return NextResponse.json(
-        { error: "Failed to create booking: " + (insertErr?.message || "Unknown error") },
+        { error: "Failed to persist booking in Supabase: " + (insertErr?.message || "Unknown error") },
         { status: 500 }
       );
     }
 
-    // 6. Return booking_id on success
     return NextResponse.json({
       success: true,
       booking_id: newBooking.id,
@@ -263,6 +228,10 @@ export async function POST(request: NextRequest) {
       start_time: newBooking.start_time,
       end_time: newBooking.end_time,
       total_price: newBooking.total_price,
+      insurance_premium: newBooking.insurance_premium,
+      policy_number: newBooking.policy_number,
+      insurance_plan_id: newBooking.insurance_plan_id,
+      insurance_plan_name: plan.plan_name,
       status: newBooking.status,
       payment_status: newBooking.payment_status,
       otp_code: newBooking.otp_code,

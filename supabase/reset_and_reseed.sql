@@ -53,7 +53,7 @@ WHERE id >= 'b0000000-0000-0000-0000-000000000000'
 -- 1.5 Remove demo profiles
 DELETE FROM public.profiles
 WHERE id IN (
-  SELECT id FROM auth.users WHERE email LIKE 'demo.%@parkit.internal'
+  SELECT id FROM auth.users WHERE email LIKE 'demo.%@parkit.internal' OR email LIKE 'demo.%@parkit.test'
 )
 OR (id >= 'a0000000-0000-0000-0000-000000000000' AND id < 'a0000000-ffff-ffff-ffff-ffffffffffff')
 OR (id >= 'd0000000-0000-0000-0000-000000000000' AND id < 'd0000000-ffff-ffff-ffff-ffffffffffff');
@@ -61,11 +61,12 @@ OR (id >= 'd0000000-0000-0000-0000-000000000000' AND id < 'd0000000-ffff-ffff-ff
 -- 1.6 Remove demo auth users
 DELETE FROM auth.users
 WHERE email LIKE 'demo.%@parkit.internal'
+   OR email LIKE 'demo.%@parkit.test'
    OR (id >= 'a0000000-0000-0000-0000-000000000000' AND id < 'a0000000-ffff-ffff-ffff-ffffffffffff')
    OR (id >= 'd0000000-0000-0000-0000-000000000000' AND id < 'd0000000-ffff-ffff-ffff-ffffffffffff');
 
 -- ------------------------------------------------------------------------------
--- STEP 2: DEMO AUTH USERS (Supabase auth.users)
+-- 1. DEMO AUTH USERS (Supabase auth.users)
 -- ------------------------------------------------------------------------------
 -- Password for all demo accounts: DemoPassword123!
 INSERT INTO auth.users (
@@ -94,14 +95,16 @@ VALUES
   ('00000000-0000-0000-0000-000000000000', 'd0000000-0000-0000-0000-000000000003', 'authenticated', 'authenticated', 'demo.driver.kunal@parkit.internal', crypt('DemoPassword123!', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Kunal Saxena","role":"driver","phone":"+91 99100 34003"}', now(), now(), '', ''),
   ('00000000-0000-0000-0000-000000000000', 'd0000000-0000-0000-0000-000000000004', 'authenticated', 'authenticated', 'demo.driver.deepa@parkit.internal', crypt('DemoPassword123!', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Deepa Ranganathan","role":"driver","phone":"+91 99100 34004"}', now(), now(), '', ''),
   ('00000000-0000-0000-0000-000000000000', 'd0000000-0000-0000-0000-000000000005', 'authenticated', 'authenticated', 'demo.driver.vikram@parkit.internal', crypt('DemoPassword123!', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Vikramaditya Yadav","role":"driver","phone":"+91 99100 34005"}', now(), now(), '', ''),
-  ('00000000-0000-0000-0000-000000000000', 'd0000000-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'demo.driver.shweta@parkit.internal', crypt('DemoPassword123!', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Shweta Agarwal","role":"driver","phone":"+91 99100 34006"}', now(), now(), '', '')
+  ('00000000-0000-0000-0000-000000000000', 'd0000000-0000-0000-0000-000000000006', 'authenticated', 'authenticated', 'demo.driver.shweta@parkit.internal', crypt('DemoPassword123!', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Shweta Agarwal","role":"driver","phone":"+91 99100 34006"}', now(), now(), '', ''),
+  ('00000000-0000-0000-0000-000000000000', 'a0000000-0000-0000-0000-000000000099', 'authenticated', 'authenticated', 'demo.host@parkit.test', crypt('DemoHost123!', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Demo Host (Verified)","role":"owner","phone":"+91 98100 12001"}', now(), now(), '', ''),
+  ('00000000-0000-0000-0000-000000000000', 'd0000000-0000-0000-0000-000000000099', 'authenticated', 'authenticated', 'demo.driver@parkit.test', crypt('DemoDriver123!', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Demo Driver (Verified)","role":"driver","phone":"+91 99100 34001"}', now(), now(), '', '')
 ON CONFLICT (id) DO UPDATE SET
   email = EXCLUDED.email,
   raw_user_meta_data = EXCLUDED.raw_user_meta_data,
   updated_at = now();
 
 -- ------------------------------------------------------------------------------
--- STEP 3: PUBLIC PROFILES
+-- 2. PUBLIC PROFILES
 -- ------------------------------------------------------------------------------
 INSERT INTO public.profiles (id, full_name, phone, role, avatar_url)
 VALUES
@@ -115,7 +118,9 @@ VALUES
   ('d0000000-0000-0000-0000-000000000003', 'Kunal Saxena', '+91 99100 34003', 'driver', 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=300&q=80'),
   ('d0000000-0000-0000-0000-000000000004', 'Deepa Ranganathan', '+91 99100 34004', 'driver', 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80'),
   ('d0000000-0000-0000-0000-000000000005', 'Vikramaditya Yadav', '+91 99100 34005', 'driver', 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=300&q=80'),
-  ('d0000000-0000-0000-0000-000000000006', 'Shweta Agarwal', '+91 99100 34006', 'driver', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=300&q=80')
+  ('d0000000-0000-0000-0000-000000000006', 'Shweta Agarwal', '+91 99100 34006', 'driver', 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=300&q=80'),
+  ('a0000000-0000-0000-0000-000000000099', 'Demo Host (Verified)', '+91 98100 12001', 'owner', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80'),
+  ('d0000000-0000-0000-0000-000000000099', 'Demo Driver (Verified)', '+91 99100 34001', 'driver', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80')
 ON CONFLICT (id) DO UPDATE SET
   full_name = EXCLUDED.full_name,
   phone = EXCLUDED.phone,
@@ -124,7 +129,7 @@ ON CONFLICT (id) DO UPDATE SET
   updated_at = now();
 
 -- ------------------------------------------------------------------------------
--- STEP 4: PARKING SPACES (18 Realistic Spots in Greater Noida, UP)
+-- 3. PARKING SPACES (18 Realistic Spots in Greater Noida, UP)
 -- ------------------------------------------------------------------------------
 INSERT INTO public.parking_spaces (
   id,
@@ -139,22 +144,22 @@ INSERT INTO public.parking_spaces (
   is_active
 )
 VALUES
-  ('b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'Pari Chowk Metro Plaza Covered Bay', 'Weatherproof, well-lit parking bay situated right beside Pari Chowk Metro Station Exit 2. CCTV monitored 24/7 with wide turning radius suitable for SUVs and sedans.', 'Ground Level Bay 4, Near Pari Chowk Metro Station Exit 2, Greater Noida, UP 201310', 28.47440, 77.50390, 45.00, 'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=1200&q=80', true),
+  ('b0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000099', 'Pari Chowk Metro Plaza Covered Bay', 'Weatherproof, well-lit parking bay situated right beside Pari Chowk Metro Station Exit 2. CCTV monitored 24/7 with wide turning radius suitable for SUVs and sedans.', 'Ground Level Bay 4, Near Pari Chowk Metro Station Exit 2, Greater Noida, UP 201310', 28.47440, 77.50390, 45.00, 'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=1200&q=80', true),
   ('b0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000002', 'India Expo Mart Premier Visitor Bay', 'Spacious private paved parking slot directly facing India Expo Centre Gate 3. Avoid exhibition congestion with guaranteed access and security guard on duty.', 'Plot 23-27, Knowledge Park II, Opp. India Expo Centre Gate 3, Greater Noida, UP 201306', 28.46230, 77.49750, 60.00, 'https://images.unsplash.com/photo-1573348722427-f1d6819fdf98?auto=format&fit=crop&w=1200&q=80', true),
   ('b0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000003', 'Knowledge Park III Campus Driveway', 'Secure, gated driveway parking in Knowledge Park III. Walking distance to leading college campuses, GL Bajaj, and Galgotias. Perfect for visitors and faculties.', 'Sector KP-III, Institutional Belt, Near GL Bajaj Institute, Greater Noida, UP 201306', 28.46780, 77.49120, 30.00, 'https://images.unsplash.com/photo-1590674899484-d5640e854abe?auto=format&fit=crop&w=1200&q=80', true),
   ('b0000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000004', 'Alpha 1 Commercial Complex Parking', 'Paved parking space right at Alpha 1 commercial hub. Safe corner with boom barrier and shaded afternoon canopy, 2 minutes from banks and restaurants.', 'Pocket A, Near Commercial Belt & Senior Citizen Park, Sector Alpha 1, Greater Noida, UP 201308', 28.48310, 77.51350, 35.00, 'https://images.unsplash.com/photo-1508873696983-2df5293cb395?auto=format&fit=crop&w=1200&q=80', true),
   ('b0000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000005', 'Beta 1 Jagat Farm Market Corner', 'Skip the heavy Jagat Farm market rush. Reserved private spot behind the retail avenue, easily accessible from main ring road with CCTV monitoring.', 'Shopping Centre Perimeter, Jagat Farm Market, Sector Gamma 1 / Beta 1, Greater Noida, UP 201308', 28.47950, 77.51800, 40.00, 'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?auto=format&fit=crop&w=1200&q=80', true),
-  ('b0000000-0000-0000-0000-000000000006', 'a0000000-0000-0000-0000-000000000001', 'Jaypee Greens Pavilion Shaded Carport', 'Premium covered carport in high-security Jaypee Greens township. Includes EV trickle-charging port, manicured driveway, and 24-hour manned gate.', 'Gated Villa Enclave, Jaypee Greens Golf Course Road, Greater Noida, UP 201310', 28.48620, 77.52400, 80.00, 'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=1200&q=80', true),
+  ('b0000000-0000-0000-0000-000000000006', 'a0000000-0000-0000-0000-000000000099', 'Jaypee Greens Pavilion Shaded Carport', 'Premium covered carport in high-security Jaypee Greens township. Includes EV trickle-charging port, manicured driveway, and 24-hour manned gate.', 'Gated Villa Enclave, Jaypee Greens Golf Course Road, Greater Noida, UP 201310', 28.48620, 77.52400, 80.00, 'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=1200&q=80', true),
   ('b0000000-0000-0000-0000-000000000007', 'a0000000-0000-0000-0000-000000000002', 'Knowledge Park II Sharda Link Spot', 'Convenient parking spot across Sharda University & Hospital. Fully paved, accessible 24/7 with night floodlights and street surveillance.', 'Institutional Area, Opp. Sharda Hospital Gate 2, Knowledge Park II, Greater Noida, UP 201306', 28.47210, 77.48800, 30.00, 'https://images.unsplash.com/photo-1587825140708-dfaf72ae4b04?auto=format&fit=crop&w=1200&q=80', true),
   ('b0000000-0000-0000-0000-000000000008', 'a0000000-0000-0000-0000-000000000003', 'Beta 2 Institutional & School Zone Bay', 'Quiet, tree-shaded driveway in Sector Beta II. Stress-free parking for school pick-up, local appointments, and metro commuters.', 'Block B, Near Ryan International School & Beta 2 Metro, Greater Noida, UP 201308', 28.47150, 77.52850, 25.00, 'https://images.unsplash.com/photo-1590674899484-d5640e854abe?auto=format&fit=crop&w=1200&q=80', true),
   ('b0000000-0000-0000-0000-000000000009', 'a0000000-0000-0000-0000-000000000004', 'Gamma 2 Shopping Plaza Reserved Bay', 'Open asphalt parking slot directly adjacent to Sector Gamma 2 commercial stores. Hassle-free entry with quick highway exit.', 'Commercial Belt Block G, Near Gamma Shopping Complex, Greater Noida, UP 201308', 28.48700, 77.50900, 35.00, 'https://images.unsplash.com/photo-1508873696983-2df5293cb395?auto=format&fit=crop&w=1200&q=80', true),
   ('b0000000-0000-0000-0000-000000000010', 'a0000000-0000-0000-0000-000000000005', 'Delta 1 Metro Connector Private Driveway', 'Dedicated private driveway just a 2-minute stroll to the Aqua Line Delta 1 Metro Station. Park securely and beat expressway rush hour traffic.', 'Pocket C, 200m from Delta 1 Metro Station, Sector Delta 1, Greater Noida, UP 201308', 28.49550, 77.51400, 40.00, 'https://images.unsplash.com/photo-1590674899484-d5640e854abe?auto=format&fit=crop&w=1200&q=80', true),
-  ('b0000000-0000-0000-0000-000000000011', 'a0000000-0000-0000-0000-000000000001', 'Gaur City Mall Covered Basement Slot', 'Reserved private parking slot in Gaur City hub. Weatherproof, barrier-controlled entry with direct elevator access to retail and corporate towers.', 'Basement Level B1, Gaur City Mall, Sector 4, Greater Noida West, UP 201009', 28.60800, 77.43050, 50.00, 'https://images.unsplash.com/photo-1573348722427-f1d6819fdf98?auto=format&fit=crop&w=1200&q=80', true),
+  ('b0000000-0000-0000-0000-000000000011', 'a0000000-0000-0000-0000-000000000099', 'Gaur City Mall Covered Basement Slot', 'Reserved private parking slot in Gaur City hub. Weatherproof, barrier-controlled entry with direct elevator access to retail and corporate towers.', 'Basement Level B1, Gaur City Mall, Sector 4, Greater Noida West, UP 201009', 28.60800, 77.43050, 50.00, 'https://images.unsplash.com/photo-1573348722427-f1d6819fdf98?auto=format&fit=crop&w=1200&q=80', true),
   ('b0000000-0000-0000-0000-000000000012', 'a0000000-0000-0000-0000-000000000002', 'TechZone 4 IT Park Express Spot', 'Paved open parking bay right inside TechZone 4 tech corridor. Ideal for IT professionals and corporate visitors near Ek Murti roundabout.', 'Plot 12, TechZone 4, Near Ek Murti Chowk, Greater Noida West, UP 201306', 28.59920, 77.44200, 40.00, 'https://images.unsplash.com/photo-1508873696983-2df5293cb395?auto=format&fit=crop&w=1200&q=80', true),
   ('b0000000-0000-0000-0000-000000000013', 'a0000000-0000-0000-0000-000000000003', 'Omicron 1 Residential Secure Carport', 'Covered residential carport with locked side gate. Clean, safe, and protected from summer sun. Readily accommodates large SUVs.', 'Sector Omicron 1, Near Eldeco Enclave, Greater Noida, UP 201310', 28.50300, 77.53100, 30.00, 'https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=1200&q=80', true),
   ('b0000000-0000-0000-0000-000000000014', 'a0000000-0000-0000-0000-000000000004', 'Gautam Buddha University Perimeter Bay', 'Wide concrete parking space near Gautam Buddha University campus main entrance. Ideal for conference attendees, parents, and academic delegates.', 'Yamuna Expressway Service Lane, Near GBU Gate 1, Sector Chi 4, Greater Noida, UP 201312', 28.43200, 77.52700, 25.00, 'https://images.unsplash.com/photo-1590674899484-d5640e854abe?auto=format&fit=crop&w=1200&q=80', true),
   ('b0000000-0000-0000-0000-000000000015', 'a0000000-0000-0000-0000-000000000005', 'Shaheed Vijay Singh Pathik Sports Bay', 'Direct stadium access parking spot. Avoid event day gridlock during cricket matches, sports championships, and indoor training sessions.', 'Recreational Green Area, Opp. Greater Noida Cricket Stadium, Sector Chi, Greater Noida, UP 201310', 28.46450, 77.52550, 50.00, 'https://images.unsplash.com/photo-1508873696983-2df5293cb395?auto=format&fit=crop&w=1200&q=80', true),
-  ('b0000000-0000-0000-0000-000000000016', 'a0000000-0000-0000-0000-000000000001', 'Surajpur District Court & Collectorate Bay', 'Designated private slot next to Surajpur Administrative Complex. Quick in-and-out access for advocates, litigants, and official administrative visits.', 'Surajpur - Kasna Road, Near District Sessions Court, Greater Noida, UP 201306', 28.52850, 77.49200, 35.00, 'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?auto=format&fit=crop&w=1200&q=80', true),
+  ('b0000000-0000-0000-0000-000000000016', 'a0000000-0000-0000-0000-000000000099', 'Surajpur District Court & Collectorate Bay', 'Designated private slot next to Surajpur Administrative Complex. Quick in-and-out access for advocates, litigants, and official administrative visits.', 'Surajpur - Kasna Road, Near District Sessions Court, Greater Noida, UP 201306', 28.52850, 77.49200, 35.00, 'https://images.unsplash.com/photo-1617814076367-b759c7d7e738?auto=format&fit=crop&w=1200&q=80', true),
   ('b0000000-0000-0000-0000-000000000017', 'a0000000-0000-0000-0000-000000000002', 'Omaxe Connaught Place Plaza Bay', 'VIP open parking space 50 meters from Omaxe CP Mall entrance. 24/7 CCTV surveillance, quick valet-style ease for weekend diners and shoppers.', 'Block Beta 2 Peripheral Lane, Adjacent to Omaxe CP Mall, Greater Noida, UP 201308', 28.47350, 77.51450, 60.00, 'https://images.unsplash.com/photo-1573348722427-f1d6819fdf98?auto=format&fit=crop&w=1200&q=80', true),
   ('b0000000-0000-0000-0000-000000000018', 'a0000000-0000-0000-0000-000000000003', 'Zeta 1 Premium Driveway Bay', 'Gated and secure driveway inside residential society perimeter. Friendly host with instant messaging and 24-hour security intercom.', 'AVJ Heights Enclave Road, Sector Zeta 1, Greater Noida, UP 201306', 28.51200, 77.50200, 35.00, 'https://images.unsplash.com/photo-1590674899484-d5640e854abe?auto=format&fit=crop&w=1200&q=80', true)
 ON CONFLICT (id) DO UPDATE SET
@@ -170,7 +175,7 @@ ON CONFLICT (id) DO UPDATE SET
   updated_at = now();
 
 -- ------------------------------------------------------------------------------
--- STEP 5: SPACE AVAILABILITY WINDOWS
+-- 4. SPACE AVAILABILITY WINDOWS
 -- ------------------------------------------------------------------------------
 INSERT INTO public.space_availability (id, space_id, day_of_week, start_time, end_time)
 VALUES
@@ -297,7 +302,7 @@ ON CONFLICT (id) DO UPDATE SET
   end_time = EXCLUDED.end_time;
 
 -- ------------------------------------------------------------------------------
--- STEP 6: COMPLETED BOOKINGS
+-- 5. COMPLETED BOOKINGS
 -- ------------------------------------------------------------------------------
 INSERT INTO public.bookings (
   id,
@@ -315,6 +320,8 @@ VALUES
   ('e0000000-0000-0000-0000-000001000001', 'b0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000001', now() - interval '6 days', now() - interval '6 days' + interval '3 hours', 135.00, 'completed', 'paid', '491203', now() - interval '6 days'),
   ('e0000000-0000-0000-0000-000001000002', 'b0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000002', now() - interval '4 days', now() - interval '4 days' + interval '2 hours', 90.00, 'completed', 'paid', '814920', now() - interval '4 days'),
   ('e0000000-0000-0000-0000-000001000003', 'b0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000003', now() - interval '2 days', now() - interval '2 days' + interval '4 hours', 180.00, 'completed', 'paid', '193852', now() - interval '2 days'),
+  ('e0000000-0000-0000-0000-000001000098', 'b0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000099', now() - interval '1 hour', now() + interval '2 hours', 135.00, 'confirmed', 'paid', '4821', now() - interval '1 hour'),
+  ('e0000000-0000-0000-0000-000001000099', 'b0000000-0000-0000-0000-000000000001', 'd0000000-0000-0000-0000-000000000099', now() - interval '1 day', now() - interval '1 day' + interval '2 hours', 90.00, 'completed', 'paid', '1934', now() - interval '1 day'),
   ('e0000000-0000-0000-0000-000002000001', 'b0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000004', now() - interval '10 days', now() - interval '10 days' + interval '6 hours', 360.00, 'completed', 'paid', '502914', now() - interval '10 days'),
   ('e0000000-0000-0000-0000-000002000002', 'b0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000005', now() - interval '7 days', now() - interval '7 days' + interval '5 hours', 300.00, 'completed', 'paid', '381940', now() - interval '7 days'),
   ('e0000000-0000-0000-0000-000002000003', 'b0000000-0000-0000-0000-000000000002', 'd0000000-0000-0000-0000-000000000006', now() - interval '3 days', now() - interval '3 days' + interval '4 hours', 240.00, 'completed', 'paid', '749102', now() - interval '3 days'),
@@ -362,7 +369,7 @@ ON CONFLICT (id) DO UPDATE SET
   payment_status = EXCLUDED.payment_status;
 
 -- ------------------------------------------------------------------------------
--- STEP 7: REVIEWS (Ratings 4-5)
+-- 6. REVIEWS (Ratings 4-5)
 -- ------------------------------------------------------------------------------
 INSERT INTO public.reviews (
   id,
@@ -421,52 +428,5 @@ VALUES
 ON CONFLICT (id) DO UPDATE SET
   rating = EXCLUDED.rating,
   comment = EXCLUDED.comment;
-
--- ------------------------------------------------------------------------------
--- STEP 8: VERIFICATION & SUMMARY
--- ------------------------------------------------------------------------------
-DO $$
-DECLARE
-  v_owners_count integer;
-  v_drivers_count integer;
-  v_spaces_count integer;
-  v_availability_count integer;
-  v_bookings_count integer;
-  v_reviews_count integer;
-BEGIN
-  SELECT count(*) INTO v_owners_count
-  FROM public.profiles
-  WHERE id >= 'a0000000-0000-0000-0000-000000000000' AND id < 'a0000000-ffff-ffff-ffff-ffffffffffff';
-
-  SELECT count(*) INTO v_drivers_count
-  FROM public.profiles
-  WHERE id >= 'd0000000-0000-0000-0000-000000000000' AND id < 'd0000000-ffff-ffff-ffff-ffffffffffff';
-
-  SELECT count(*) INTO v_spaces_count
-  FROM public.parking_spaces
-  WHERE id >= 'b0000000-0000-0000-0000-000000000000' AND id < 'b0000000-ffff-ffff-ffff-ffffffffffff';
-
-  SELECT count(*) INTO v_availability_count
-  FROM public.space_availability
-  WHERE id >= 'c0000000-0000-0000-0000-000000000000' AND id < 'c0000000-ffff-ffff-ffff-ffffffffffff';
-
-  SELECT count(*) INTO v_bookings_count
-  FROM public.bookings
-  WHERE id >= 'e0000000-0000-0000-0000-000000000000' AND id < 'e0000000-ffff-ffff-ffff-ffffffffffff';
-
-  SELECT count(*) INTO v_reviews_count
-  FROM public.reviews
-  WHERE id >= 'f0000000-0000-0000-0000-000000000000' AND id < 'f0000000-ffff-ffff-ffff-ffffffffffff';
-
-  RAISE NOTICE '====================================================';
-  RAISE NOTICE 'ParKit Seed Complete (Greater Noida, Uttar Pradesh)';
-  RAISE NOTICE '  - Demo Owner Profiles:      %', v_owners_count;
-  RAISE NOTICE '  - Demo Driver Profiles:     %', v_drivers_count;
-  RAISE NOTICE '  - Parking Spaces:           %', v_spaces_count;
-  RAISE NOTICE '  - Availability Windows:     %', v_availability_count;
-  RAISE NOTICE '  - Completed Bookings:       %', v_bookings_count;
-  RAISE NOTICE '  - Reviews (4-5 Stars):      %', v_reviews_count;
-  RAISE NOTICE '====================================================';
-END $$;
 
 COMMIT;

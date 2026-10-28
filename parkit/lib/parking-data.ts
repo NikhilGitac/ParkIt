@@ -34,8 +34,23 @@ export interface ParkingSpace {
   amenities: string[];
   owner_name: string;
   owner_avatar: string;
+  owner_phone?: string;
   distance_km?: number;
   is_available_now?: boolean;
+  house_no?: string;
+  building_name?: string;
+  street?: string;
+  landmark?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  space_type?: string;
+  vehicle_types?: string[];
+  total_slots?: number;
+  entry_instructions?: string;
+  contact_phone?: string;
+  max_vehicle_type?: string;
+  verified_host?: boolean;
 }
 
 // Sensible fallback location: Pari Chowk, Greater Noida, UP
@@ -596,12 +611,16 @@ export async function fetchSpacesFromSupabase(
       const dist = calculateDistanceKm(userLat, userLng, Number(item.latitude), Number(item.longitude));
       const availNow = isSpaceAvailableNow(item.space_availability);
 
+      // Privacy: public pages show area, street, landmark, city, and pincode
+      const publicAddressParts = [item.street, item.landmark, item.city, item.pincode].filter(Boolean);
+      const publicAddress = publicAddressParts.length > 0 ? publicAddressParts.join(", ") : item.address;
+
       return {
         id: item.id,
         owner_id: item.owner_id,
         title: item.title,
         description: item.description || "Secure, easily accessible parking spot.",
-        address: item.address,
+        address: publicAddress,
         latitude: Number(item.latitude),
         longitude: Number(item.longitude),
         price_per_hour: Number(item.price_per_hour),
@@ -609,12 +628,23 @@ export async function fetchSpacesFromSupabase(
         is_active: item.is_active,
         rating: avgRating,
         review_count: revs.length || 24,
-        amenities: ["CCTV Monitored", "Paved Surface", "Guaranteed Space"],
+        amenities: Array.isArray(item.amenities) && item.amenities.length > 0 ? item.amenities : ["CCTV Monitored", "Paved Surface", "Guaranteed Space"],
         owner_name: item.profiles?.full_name || "ParKit Verified Host",
         owner_avatar: item.profiles?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80",
         availability: item.space_availability || [],
         distance_km: dist,
         is_available_now: availNow,
+        street: item.street,
+        landmark: item.landmark,
+        city: item.city,
+        state: item.state,
+        pincode: item.pincode,
+        space_type: item.space_type || "Home",
+        vehicle_types: item.vehicle_types || ["Car"],
+        total_slots: item.total_slots || 1,
+        max_vehicle_type: item.max_vehicle_type || "suv",
+        verified_host: item.verified_host ?? true,
+        // Private fields (house_no, building_name, entry_instructions, contact_phone) are protected
       };
     });
   } catch (e) {
@@ -666,12 +696,41 @@ export async function fetchSingleSpaceFromSupabase(id: string): Promise<ParkingS
 
       const primaryPhoto = data.photo_url || "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=1200&q=80";
 
+      // Enforce privacy: Only space owner and driver with valid paid booking receive private fields
+      let isAuthorized = false;
+      try {
+        const { data: authData } = await supabase.auth.getUser();
+        const currentUserId = authData?.user?.id;
+        if (currentUserId) {
+          if (currentUserId === data.owner_id) {
+            isAuthorized = true;
+          } else {
+            const { data: bookingData } = await supabase
+              .from("bookings")
+              .select("id")
+              .eq("space_id", data.id)
+              .eq("driver_id", currentUserId)
+              .in("status", ["confirmed", "checked_in", "completed"])
+              .limit(1);
+            if (bookingData && bookingData.length > 0) {
+              isAuthorized = true;
+            }
+          }
+        }
+      } catch {
+        isAuthorized = false;
+      }
+
+      const publicAddressParts = [data.street, data.landmark, data.city, data.pincode].filter(Boolean);
+      const publicAddress = publicAddressParts.length > 0 ? publicAddressParts.join(", ") : data.address;
+      const displayAddress = isAuthorized ? data.address : publicAddress;
+
       return {
         id: data.id,
         owner_id: data.owner_id,
         title: data.title,
         description: data.description || "Secure, easily accessible parking spot.",
-        address: data.address,
+        address: displayAddress,
         latitude: Number(data.latitude),
         longitude: Number(data.longitude),
         price_per_hour: Number(data.price_per_hour),
@@ -686,11 +745,26 @@ export async function fetchSingleSpaceFromSupabase(id: string): Promise<ParkingS
         rating: avgRating,
         review_count: revs.length || 28,
         reviews: revs.length > 0 ? revs : getFallbackReviews(data.id),
-        amenities: ["CCTV Monitored", "Paved Surface", "Wide SUV Turning Radius", "Instant OTP Check-in"],
+        amenities: Array.isArray(data.amenities) && data.amenities.length > 0 ? data.amenities : ["CCTV Monitored", "Paved Surface", "Wide SUV Turning Radius", "Instant OTP Check-in"],
         owner_name: data.profiles?.full_name || "ParKit Verified Host",
         owner_avatar: data.profiles?.avatar_url || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80",
+        owner_phone: isAuthorized ? (data.contact_phone || data.profiles?.phone || "+91 98100 12001") : undefined,
         availability: data.space_availability || [],
         is_available_now: isSpaceAvailableNow(data.space_availability),
+        house_no: isAuthorized ? data.house_no : undefined,
+        building_name: isAuthorized ? data.building_name : undefined,
+        street: data.street,
+        landmark: data.landmark,
+        city: data.city,
+        state: data.state,
+        pincode: data.pincode,
+        space_type: data.space_type || "Home",
+        vehicle_types: data.vehicle_types || ["Car"],
+        total_slots: data.total_slots || 1,
+        max_vehicle_type: data.max_vehicle_type || "suv",
+        verified_host: data.verified_host ?? true,
+        entry_instructions: isAuthorized ? data.entry_instructions : undefined,
+        contact_phone: isAuthorized ? (data.contact_phone || data.profiles?.phone) : undefined,
       };
     }
   } catch (e) {

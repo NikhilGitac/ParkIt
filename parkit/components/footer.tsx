@@ -37,14 +37,14 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <a href="#how-it-works" className="hover:text-[#2FD08A] transition-colors">
+                <Link href="/#how-it-works" className="hover:text-[#2FD08A] transition-colors">
                   How booking works
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#features" className="hover:text-[#2FD08A] transition-colors">
+                <Link href="/#features" className="hover:text-[#2FD08A] transition-colors">
                   Instant QR tickets
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -56,19 +56,19 @@ export function Footer() {
             </h3>
             <ul className="mt-4 space-y-2.5 text-sm text-slate-300">
               <li>
-                <Link href="/owner" className="hover:text-[#FFC93C] transition-colors">
+                <Link href="/owner/list-space" className="hover:text-[#FFC93C] transition-colors">
                   List your space
                 </Link>
               </li>
               <li>
-                <a href="/owner" className="hover:text-[#FFC93C] transition-colors">
+                <Link href="/owner" className="hover:text-[#FFC93C] transition-colors">
                   Earnings calculator
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#features" className="hover:text-[#FFC93C] transition-colors">
+                <Link href="/#features" className="hover:text-[#FFC93C] transition-colors">
                   Host protection
-                </a>
+                </Link>
               </li>
             </ul>
           </div>

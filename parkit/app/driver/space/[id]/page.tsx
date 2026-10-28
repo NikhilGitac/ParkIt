@@ -2,20 +2,23 @@ import { Suspense } from "react";
 import SpaceDetailView from "./space-detail-view";
 import { Metadata } from "next";
 
-export const instant = false;
-
 export const metadata: Metadata = {
   title: "Parking Space Details | ParKit",
   description: "View parking space rates, availability schedule, location, and host details.",
 };
 
-export default async function SpaceDetailPage({
+async function SpaceDetailContent({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  return <SpaceDetailView id={id} />;
+}
 
+export default function SpaceDetailPage(props: {
+  params: Promise<{ id: string }>;
+}) {
   return (
     <Suspense
       fallback={
@@ -24,7 +27,7 @@ export default async function SpaceDetailPage({
         </div>
       }
     >
-      <SpaceDetailView id={id} />
+      <SpaceDetailContent params={props.params} />
     </Suspense>
   );
 }

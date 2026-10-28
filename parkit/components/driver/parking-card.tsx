@@ -98,10 +98,22 @@ export function ParkingCard({
               )}
             </div>
 
-            {/* Title */}
-            <h3 className="font-bold text-[#0B1F3A] text-sm sm:text-base leading-snug line-clamp-1 group-hover:text-[#26b878] transition-colors">
-              {space.title}
-            </h3>
+              {/* Title & Verified Badge */}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h3 className="font-bold text-[#0B1F3A] text-sm sm:text-base leading-snug line-clamp-1 group-hover:text-[#26b878] transition-colors">
+                {space.title}
+              </h3>
+              {space.verified_host && (
+                <span className="inline-flex items-center gap-1 bg-[#2FD08A]/15 text-[#0B1F3A] border border-[#2FD08A]/40 text-[10px] font-extrabold px-1.5 py-0.5 rounded-md shrink-0">
+                  <ShieldCheck className="w-3 h-3 text-[#2FD08A]" />
+                  Verified
+                </span>
+              )}
+              <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-800 border border-indigo-200 text-[10px] font-extrabold px-1.5 py-0.5 rounded-md shrink-0" title="Every booking is protected by ParkIt, up to ₹10,000 at minimum">
+                <ShieldCheck className="w-3 h-3 text-indigo-600" />
+                Insured parking
+              </span>
+            </div>
 
             {/* Address */}
             <p className="text-xs text-slate-500 line-clamp-1 mt-0.5">

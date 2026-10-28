@@ -1,56 +1,63 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import QRCode from "qrcode";
-import { FALLBACK_PARKING_SPACES } from "@/lib/parking-data";
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = await params;
     const supabase = await createClient();
 
-    // 1. Fetch from Supabase
-    const { data: dbBooking, error } = await supabase
+    // 1. Enforce authenticated session
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Unauthorized. Please log in to view booking details." },
+        { status: 401 }
+      );
+    }
+
+    const { id } = await params;
+
+    // 2. Fetch directly from Supabase
+    const { data: booking, error } = await supabase
       .from("bookings")
       .select(`
         *,
+        insurance_plans:insurance_plan_id (*),
         parking_spaces:space_id (*, profiles:owner_id (full_name, avatar_url, phone)),
         profiles:driver_id (full_name, phone)
       `)
       .eq("id", id)
       .maybeSingle();
 
-    let booking = dbBooking;
-
-    // 2. Check in-memory demo registry if not in Supabase
-    if (!booking && typeof globalThis.__PARKIT_DEMO_BOOKINGS !== "undefined") {
-      const memoryItem = globalThis.__PARKIT_DEMO_BOOKINGS.find((b) => b.id === id);
-      if (memoryItem) {
-        const fallbackSpace = FALLBACK_PARKING_SPACES.find((s) => s.id === memoryItem.space_id) || FALLBACK_PARKING_SPACES[0];
-        booking = {
-          ...memoryItem,
-          parking_spaces: {
-            ...fallbackSpace,
-            profiles: {
-              full_name: fallbackSpace.owner_name,
-              avatar_url: fallbackSpace.owner_avatar,
-              phone: "+91 98100 12001",
-            },
-          },
-          profiles: {
-            full_name: "Demo Driver",
-            phone: "+91 99100 34001",
-          },
-        };
-      }
+    if (error) {
+      return NextResponse.json(
+        { error: "Database error retrieving booking: " + error.message },
+        { status: 503 }
+      );
     }
 
     if (!booking) {
       return NextResponse.json(
-        { error: "Booking reference not found" },
+        { error: "Booking reference not found in Supabase" },
         { status: 404 }
+      );
+    }
+
+    // 3. Verify that the authenticated user is either the driver or the space owner
+    const isDriver = booking.driver_id === user.id;
+    const isOwner = booking.parking_spaces?.owner_id === user.id;
+
+    if (!isDriver && !isOwner) {
+      return NextResponse.json(
+        { error: "Forbidden. You do not have permission to view this reservation." },
+        { status: 403 }
       );
     }
 

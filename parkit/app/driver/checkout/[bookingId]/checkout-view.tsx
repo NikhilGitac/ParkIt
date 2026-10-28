@@ -8,6 +8,8 @@ import {
   ParkingSpace,
   fetchSingleSpaceFromSupabase,
 } from "@/lib/parking-data";
+import { createClient } from "@/lib/supabase/client";
+import { AuthModal } from "@/components/auth/auth-modal";
 import {
   ArrowLeft,
   Calendar,
@@ -30,7 +32,10 @@ import {
   X,
   CreditCard,
   Info,
+  FileText,
 } from "lucide-react";
+import { InsurancePlan, FALLBACK_INSURANCE_PLANS } from "@/lib/insurance-data";
+import { PolicySummaryModal } from "@/components/insurance/policy-summary-modal";
 
 export interface BookingData {
   id: string;
@@ -44,6 +49,11 @@ export interface BookingData {
   otp_code?: string;
   qr_code_url?: string;
   checkin_url?: string;
+  insurance_plan_id?: string;
+  insurance_premium?: number;
+  policy_number?: string;
+  insurance_status?: string;
+  insurance_plans?: InsurancePlan;
   parking_spaces?: ParkingSpace & {
     profiles?: {
       full_name: string;
@@ -76,6 +86,29 @@ export default function CheckoutView({ id }: { id: string }) {
   const [upiIdInput, setUpiIdInput] = useState("driver@okhdfcbank");
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [copiedOtp, setCopiedOtp] = useState(false);
+
+  // Driver Authentication state
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showPolicyModal, setShowPolicyModal] = useState(false);
+
+  // Monitor Supabase Auth state for the driver
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setCurrentUser(session?.user || null);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(session?.user || null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   // Load either existing booking or space details
   useEffect(() => {
@@ -192,15 +225,17 @@ export default function CheckoutView({ id }: { id: string }) {
     setBookingError(null);
 
     try {
-      const response = await fetch("/api/create_booking", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          space_id: space?.id || id,
-          start_time: startIso,
-          end_time: endIso,
-        }),
-      });
+        const response = await fetch("/api/create_booking", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            space_id: space?.id || id,
+            start_time: startIso,
+            end_time: endIso,
+            driver_id: currentUser?.id,
+            insurance_plan_id: searchParams.get("insurancePlanId") || undefined,
+          }),
+        });
 
       const result = await response.json();
 
@@ -243,6 +278,11 @@ export default function CheckoutView({ id }: { id: string }) {
 
   // Click on "Pay with UPI"
   const handleOpenUpiModal = async () => {
+    if (!currentUser) {
+      setShowAuthModal(true);
+      return;
+    }
+
     let bookingId = booking?.id;
     if (!bookingId) {
       bookingId = (await ensureBookingCreated()) || undefined;
@@ -375,6 +415,30 @@ export default function CheckoutView({ id }: { id: string }) {
           </p>
         </div>
 
+        {/* Unauthenticated Driver Banner */}
+        {!currentUser && !isPaid && (
+          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-[#0B1F3A] to-[#163359] text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-soft border border-slate-700/50 animate-in fade-in duration-200">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#2FD08A]/20 flex items-center justify-center text-[#2FD08A] shrink-0 border border-[#2FD08A]/30">
+                <ShieldCheck className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold">Driver Authentication Required</h4>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  Sign in or create a driver account to link your reservation and generate your gate access OTP pass.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowAuthModal(true)}
+              className="px-4 py-2.5 bg-[#2FD08A] hover:bg-[#26b878] text-[#0B1F3A] text-xs font-extrabold rounded-xl shadow-md transition-all shrink-0 cursor-pointer text-center active:scale-98"
+            >
+              Sign In to Continue
+            </button>
+          </div>
+        )}
+
         {/* Error Alert */}
         {bookingError && (
           <div className="mb-6 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in duration-200">
@@ -471,6 +535,40 @@ export default function CheckoutView({ id }: { id: string }) {
                     Paid ₹{totalPrice}
                   </span>
                 </div>
+
+                {/* Insurance Policy Details & Summary Download */}
+                {booking.policy_number && (
+                  <div className="p-4 bg-emerald-50/80 border border-emerald-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-in fade-in">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-white border border-emerald-200 flex items-center justify-center text-[#2FD08A] shrink-0 font-bold shadow-xs">
+                        <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-extrabold text-xs text-[#0B1F3A]">
+                            {booking.insurance_plans?.plan_name || "Vehicle Parking Protection"}
+                          </span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-200/80 text-emerald-900">
+                            Active
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 mt-0.5">
+                          Policy No: <span className="font-mono font-bold text-slate-800">{booking.policy_number}</span>
+                          {booking.insurance_plans?.provider ? ` • ${booking.insurance_plans.provider}` : ""}
+                        </p>
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowPolicyModal(true)}
+                      className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-white hover:bg-slate-50 border border-emerald-300 rounded-xl text-xs font-bold text-emerald-900 shadow-xs transition-all cursor-pointer shrink-0"
+                    >
+                      <FileText className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>Download policy summary</span>
+                    </button>
+                  </div>
+                )}
 
                 {/* QR Code Presentation */}
                 <div className="flex flex-col sm:flex-row items-center gap-6 p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-200/80">
@@ -649,9 +747,14 @@ export default function CheckoutView({ id }: { id: string }) {
                   </span>
                 </div>
 
-                <div className="flex justify-between">
-                  <span>ParKit Guarantee & Protection</span>
-                  <span className="font-semibold text-emerald-600">Free</span>
+                <div className="flex justify-between items-center">
+                  <span className="flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#2FD08A]" />
+                    <span>{booking?.insurance_plans?.plan_name || "Parking Protection"}</span>
+                  </span>
+                  <span className={`font-semibold ${Number(booking?.insurance_premium || 0) === 0 ? "text-emerald-600" : "text-[#0B1F3A]"}`}>
+                    {Number(booking?.insurance_premium || 0) === 0 ? "Included" : `+₹${booking?.insurance_premium}`}
+                  </span>
                 </div>
 
                 <div className="flex justify-between">
@@ -716,6 +819,22 @@ export default function CheckoutView({ id }: { id: string }) {
           </div>
         </div>
       </main>
+
+      {/* Policy Summary Modal */}
+      {booking && (
+        <PolicySummaryModal
+          isOpen={showPolicyModal}
+          onClose={() => setShowPolicyModal(false)}
+          policyNumber={booking.policy_number || "PK-2026-ACTIVE"}
+          plan={booking.insurance_plans || FALLBACK_INSURANCE_PLANS[0]}
+          spaceTitle={space?.title || "Reserved Space"}
+          spaceAddress={space?.address || ""}
+          driverName={currentUser?.user_metadata?.full_name || currentUser?.email || "Driver"}
+          startTime={booking.start_time}
+          endTime={booking.end_time}
+          premium={Number(booking.insurance_premium || 0)}
+        />
+      )}
 
       {/* Requirement 4: Clearly Labeled Mock UPI Payment Screen Modal */}
       {showUpiModal && (
@@ -916,6 +1035,18 @@ export default function CheckoutView({ id }: { id: string }) {
           </div>
         </div>
       )}
+
+      {/* Driver Authentication Modal */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        title="Sign in to complete reservation"
+        subtitle="Sign in or register your driver account to confirm payment and receive your gate pass."
+        onSuccess={(user) => {
+          setCurrentUser(user);
+          setShowAuthModal(false);
+        }}
+      />
     </div>
   );
 }

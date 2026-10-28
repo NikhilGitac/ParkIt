@@ -3,76 +3,82 @@ import { createClient } from "@/lib/supabase/server";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const { space_id, space_title, price_per_hour = 45 } = body;
-
     const supabase = await createClient();
 
-    const targetSpaceId = space_id || "b0000000-0000-0000-0000-000000000001";
-    const bookingId = `bk-${Date.now().toString(36)}`;
-    const otpCode = String(Math.floor(100000 + Math.random() * 900000));
+    // 1. Enforce authenticated session on the server
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
 
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: "Unauthorized. Please log in as a host to simulate a test booking." },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const { space_id, price_per_hour = 45 } = body;
+
+    // Verify user owns the space or get their first space
+    let targetSpaceId = space_id;
+    if (!targetSpaceId) {
+      const { data: userSpace } = await supabase
+        .from("parking_spaces")
+        .select("id")
+        .eq("owner_id", user.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (!userSpace) {
+        return NextResponse.json(
+          { error: "No parking spaces found for your account. Please list a space first." },
+          { status: 400 }
+        );
+      }
+      targetSpaceId = userSpace.id;
+    }
+
+    const otpCode = String(Math.floor(100000 + Math.random() * 900000));
     const now = new Date();
     const startTime = new Date(now.getTime() + 15 * 60 * 1000); // 15 mins from now
     const endTime = new Date(startTime.getTime() + 2 * 60 * 60 * 1000); // 2 hours duration
-    const totalPrice = price_per_hour * 2;
+    const totalPrice = Number(price_per_hour) * 2;
 
-    const demoDrivers = [
-      { name: "Aarav Kapoor", phone: "+91 98765 43210" },
-      { name: "Pooja Malhotra", phone: "+91 98111 22334" },
-      { name: "Tanmay Sen", phone: "+91 99223 34455" },
-      { name: "Ishaan Bhatia", phone: "+91 97334 45566" },
-    ];
-    const driver = demoDrivers[Math.floor(Math.random() * demoDrivers.length)];
-
-    const newBooking = {
-      id: bookingId,
-      space_id: targetSpaceId,
-      driver_id: "d0000000-0000-0000-0000-000000000001",
-      start_time: startTime.toISOString(),
-      end_time: endTime.toISOString(),
-      total_price: totalPrice,
-      status: "confirmed",
-      payment_status: "paid",
-      otp_code: otpCode,
-      created_at: new Date().toISOString(),
-    };
-
-    // Store in global memory store
-    if (typeof globalThis.__PARKIT_DEMO_BOOKINGS !== "undefined") {
-      globalThis.__PARKIT_DEMO_BOOKINGS.unshift(newBooking);
-    } else {
-      globalThis.__PARKIT_DEMO_BOOKINGS = [newBooking];
-    }
-
-    // Try inserting in Supabase
-    try {
-      await supabase.from("bookings").insert({
-        id: bookingId,
+    // Insert real booking record into Supabase
+    const { data: newBooking, error: insertErr } = await supabase
+      .from("bookings")
+      .insert({
         space_id: targetSpaceId,
-        driver_id: "d0000000-0000-0000-0000-000000000001",
+        driver_id: user.id, // self or verified driver
         start_time: startTime.toISOString(),
         end_time: endTime.toISOString(),
         total_price: totalPrice,
         status: "confirmed",
         payment_status: "paid",
         otp_code: otpCode,
-      });
-    } catch (e) {
-      // ignore if Supabase offline or RLS
+      })
+      .select()
+      .single();
+
+    if (insertErr || !newBooking) {
+      return NextResponse.json(
+        { error: "Failed to persist simulated booking in Supabase: " + (insertErr?.message || "Unknown error") },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
       success: true,
-      booking: {
-        ...newBooking,
-        space_title: space_title || "Pari Chowk Metro Plaza Covered Bay",
-        driver_name: driver.name,
-        driver_phone: driver.phone,
-      },
+      booking: newBooking,
+      message: "Simulated booking created and confirmed directly on Supabase.",
     });
   } catch (err: any) {
-    console.error("Error in simulate booking:", err);
-    return NextResponse.json({ error: err.message }, { status: 500 });
+    console.error("Error simulating booking:", err);
+    return NextResponse.json(
+      { error: err?.message || "Failed to simulate booking" },
+      { status: 500 }
+    );
   }
 }

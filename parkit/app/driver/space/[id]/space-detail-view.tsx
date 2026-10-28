@@ -10,6 +10,15 @@ import {
   fetchSingleSpaceFromSupabase,
   SpaceAvailabilityWindow,
 } from "@/lib/parking-data";
+import { createClient } from "@/lib/supabase/client";
+import { AuthModal } from "@/components/auth/auth-modal";
+import { DriverVerificationModal } from "@/components/verification/driver-verification-modal";
+import { ProtectCarSection } from "@/components/insurance/protect-car-section";
+import {
+  InsurancePlan,
+  FALLBACK_INSURANCE_PLANS,
+  getMinPlatformCoverageLimit,
+} from "@/lib/insurance-data";
 import {
   ArrowLeft,
   Star,
@@ -30,6 +39,7 @@ import {
   ArrowRight,
   Share2,
   Heart,
+  Phone,
 } from "lucide-react";
 
 // Dynamic import for MiniSpaceMap to prevent SSR hydration issues
@@ -96,6 +106,88 @@ export default function SpaceDetailView({ id }: { id: string }) {
   const [startTime, setStartTime] = useState<string>(getInitialStartTime());
   const [durationHours, setDurationHours] = useState<number>(2);
 
+  // Driver Authentication state
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [showDriverVerifyModal, setShowDriverVerifyModal] = useState(false);
+  const [driverStatus, setDriverStatus] = useState<string>("unverified");
+  const [driverPhone, setDriverPhone] = useState<string>("");
+
+  // Insurance Plans state (Driver vehicle protection)
+  const [insurancePlans, setInsurancePlans] = useState<InsurancePlan[]>(FALLBACK_INSURANCE_PLANS);
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("plan_protect_basic");
+
+  // Load insurance plans from DB
+  useEffect(() => {
+    async function loadPlans() {
+      try {
+        const res = await fetch("/api/insurance/plans");
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data.plans) && data.plans.length > 0) {
+            setInsurancePlans(data.plans);
+            // Default to basic platform plan if found
+            const basic = data.plans.find(
+              (p: InsurancePlan) =>
+                p.plan_type === "platform" && p.plan_name.toLowerCase().includes("basic")
+            );
+            if (basic) {
+              setSelectedPlanId(basic.id);
+            } else {
+              setSelectedPlanId(data.plans[0].id);
+            }
+          }
+        }
+      } catch (err) {
+        console.warn("Could not load insurance plans from DB, using fallbacks:", err);
+      }
+    }
+    loadPlans();
+  }, []);
+
+  // Monitor Supabase Auth state for the driver
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setCurrentUser(session?.user || null);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(session?.user || null);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Fetch driver verification status whenever user changes
+  useEffect(() => {
+    async function checkDriverStatus() {
+      if (!currentUser) {
+        setDriverStatus("unverified");
+        return;
+      }
+      try {
+        const res = await fetch("/api/verify/status");
+        if (res.ok) {
+          const data = await res.json();
+          if (data.profile?.driver_status) {
+            setDriverStatus(data.profile.driver_status);
+          }
+          if (data.profile?.phone) {
+            setDriverPhone(data.profile.phone);
+          }
+        }
+      } catch (err) {
+        console.warn("Could not check driver verification status:", err);
+      }
+    }
+    checkDriverStatus();
+  }, [currentUser]);
+
   // Fetch full space details from Supabase (or fallback)
   useEffect(() => {
     async function loadSpace() {
@@ -106,6 +198,71 @@ export default function SpaceDetailView({ id }: { id: string }) {
     }
     loadSpace();
   }, [id]);
+
+  // Privacy Rule: Check if driver has a confirmed/paid booking or is the owner
+  const [hasPaidBooking, setHasPaidBooking] = useState(false);
+
+  useEffect(() => {
+    async function checkBookingAccess() {
+      if (!currentUser || !space) {
+        setHasPaidBooking(false);
+        return;
+      }
+
+      // Space owner has immediate access
+      if (currentUser.id === space.owner_id) {
+        setHasPaidBooking(true);
+        return;
+      }
+
+      try {
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("bookings")
+          .select("id, status")
+          .eq("space_id", space.id)
+          .eq("driver_id", currentUser.id)
+          .in("status", ["confirmed", "checked_in", "completed"])
+          .limit(1);
+
+        if (!error && data && data.length > 0) {
+          setHasPaidBooking(true);
+        } else {
+          setHasPaidBooking(false);
+        }
+      } catch {
+        setHasPaidBooking(false);
+      }
+    }
+
+    checkBookingAccess();
+  }, [currentUser, space]);
+
+  const isAuthorized = Boolean(
+    currentUser && (currentUser.id === space?.owner_id || hasPaidBooking)
+  );
+
+  const publicAddress = useMemo(() => {
+    if (!space) return "";
+    const parts = [space.street, space.landmark, space.city, space.pincode].filter(Boolean);
+    return parts.length > 0 ? parts.join(", ") : space.address;
+  }, [space]);
+
+  const fullAddress = useMemo(() => {
+    if (!space) return "";
+    const parts = [
+      space.house_no,
+      space.building_name,
+      space.street,
+      space.landmark,
+      space.city,
+      space.state,
+      space.pincode,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(", ") : space.address;
+  }, [space]);
+
+  const displayAddress = isAuthorized ? fullAddress : publicAddress;
 
   // Determine availability window for the currently selected date
   const selectedDayOfWeek = useMemo(() => {
@@ -158,11 +315,30 @@ export default function SpaceDetailView({ id }: { id: string }) {
     return checkTimeSlotAvailable(startTime, durationHours);
   }, [startTime, durationHours, operatingSlotForDay, selectedDate]);
 
-  // Calculated pricing
+  // Insurance Plan selection & server-side matched calculations
+  const selectedPlan = useMemo(() => {
+    return (
+      insurancePlans.find((p) => p.id === selectedPlanId) ||
+      insurancePlans[0] ||
+      FALLBACK_INSURANCE_PLANS[0]
+    );
+  }, [insurancePlans, selectedPlanId]);
+
+  const insurancePremium = useMemo(() => {
+    if (!selectedPlan) return 0;
+    const flat = Number(selectedPlan.premium_flat || 0);
+    const hourly = Number(selectedPlan.premium_per_hour || 0);
+    return Math.round(flat + hourly * durationHours);
+  }, [selectedPlan, durationHours]);
+
+  const minProtectionLimit = useMemo(() => {
+    return getMinPlatformCoverageLimit(insurancePlans);
+  }, [insurancePlans]);
+
+  // Calculated pricing (rate * hours + insurance premium)
   const hourlyRate = space?.price_per_hour || 35;
   const subtotal = hourlyRate * durationHours;
-  const serviceFee = 0; // ParKit free reservation guarantee
-  const estimatedTotal = subtotal + serviceFee;
+  const estimatedTotal = subtotal + insurancePremium;
 
   const checkoutUrl = useMemo(() => {
     if (!space || !currentSlotStatus.available) return "#";
@@ -172,14 +348,22 @@ export default function SpaceDetailView({ id }: { id: string }) {
       duration: String(durationHours),
       total: String(estimatedTotal),
       rate: String(hourlyRate),
+      insurancePlanId: selectedPlan?.id || "",
     });
     return `/driver/checkout/${space.id}?${q.toString()}`;
-  }, [space, currentSlotStatus.available, selectedDate, startTime, durationHours, estimatedTotal, hourlyRate]);
+  }, [space, currentSlotStatus.available, selectedDate, startTime, durationHours, estimatedTotal, hourlyRate, selectedPlan]);
 
-  // Handler to navigate to checkout
-  const handleProceedToCheckout = () => {
+  // Handler to navigate to checkout or trigger driver authentication
+  const handleBookNow = (e?: React.MouseEvent) => {
+    if (e) e.preventDefault();
     if (!currentSlotStatus.available || !space) return;
-    router.push(checkoutUrl);
+
+    if (!currentUser) {
+      setShowAuthModal(true);
+      return;
+    }
+
+    setShowDriverVerifyModal(true);
   };
 
   if (loading && !space) {
@@ -264,12 +448,25 @@ export default function SpaceDetailView({ id }: { id: string }) {
               Verified Space
             </span>
 
+            {space.verified_host && (
+              <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-800 text-xs font-bold px-2.5 py-0.5 rounded-full border border-emerald-300">
+                <ShieldCheck className="w-3.5 h-3.5 text-[#2FD08A]" />
+                Verified Host
+              </span>
+            )}
+
             {space.is_available_now && (
               <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-800 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-emerald-200">
                 <span className="w-2 h-2 rounded-full bg-[#2FD08A] animate-pulse"></span>
                 Available Now
               </span>
             )}
+
+            {/* Insured parking badge */}
+            <span className="inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-900 text-xs font-semibold px-2.5 py-0.5 rounded-full border border-emerald-300">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#2FD08A]" />
+              <span>Insured parking • Every booking is protected by ParkIt, up to ₹{minProtectionLimit.toLocaleString("en-IN")} at minimum</span>
+            </span>
           </div>
 
           <h1 className="text-2xl sm:text-3xl font-extrabold text-[#0B1F3A] tracking-tight">
@@ -285,7 +482,7 @@ export default function SpaceDetailView({ id }: { id: string }) {
             <span>•</span>
             <div className="flex items-center gap-1">
               <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
-              <span>{space.address}</span>
+              <span>{displayAddress}</span>
             </div>
           </div>
         </div>
@@ -368,14 +565,24 @@ export default function SpaceDetailView({ id }: { id: string }) {
               </div>
 
               <div className="hidden sm:flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => alert(`Connecting with host ${space.owner_name}... Direct chat unlocks upon booking.`)}
-                  className="inline-flex items-center gap-1 text-xs font-bold text-[#0B1F3A] hover:text-[#26b878] border border-slate-200 px-3 py-2 rounded-xl transition-colors"
-                >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  <span>Contact Host</span>
-                </button>
+                {isAuthorized && (space.contact_phone || space.owner_phone) ? (
+                  <a
+                    href={`tel:${space.contact_phone || space.owner_phone}`}
+                    className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-3.5 py-2 rounded-xl hover:bg-emerald-100 transition-colors shadow-xs"
+                  >
+                    <Phone className="w-3.5 h-3.5 text-[#2FD08A]" />
+                    <span>Call Host: {space.contact_phone || space.owner_phone}</span>
+                  </a>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => alert(`Connecting with host ${space.owner_name}... Direct host phone and chat unlock upon confirmed booking.`)}
+                    className="inline-flex items-center gap-1 text-xs font-bold text-[#0B1F3A] hover:text-[#26b878] border border-slate-200 px-3 py-2 rounded-xl transition-colors"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>Contact Host</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -421,22 +628,107 @@ export default function SpaceDetailView({ id }: { id: string }) {
               </div>
             </div>
 
-            {/* Map Location Preview */}
+            {/* Map Location Preview & Privacy Protection */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200/90 shadow-soft">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
                 <div>
                   <h2 className="text-base font-bold text-[#0B1F3A]">
                     Location & Directions
                   </h2>
-                  <p className="text-xs text-slate-500 mt-0.5">{space.address}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{displayAddress}</p>
                 </div>
+                {isAuthorized ? (
+                  <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full self-start sm:self-auto">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#2FD08A]" />
+                    Full Address Unlocked
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-full self-start sm:self-auto">
+                    <Lock className="w-3.5 h-3.5 text-slate-400" />
+                    Exact House No. Protected
+                  </span>
+                )}
               </div>
+
               <MiniSpaceMap
                 latitude={space.latitude}
                 longitude={space.longitude}
                 title={space.title}
-                address={space.address}
+                address={displayAddress}
               />
+
+              {/* Unlocked Details for Paid Booking / Owner */}
+              {isAuthorized ? (
+                <div className="mt-4 rounded-xl bg-emerald-50/70 border border-emerald-200 p-4 space-y-3">
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
+                    <CheckCircle2 className="w-4 h-4 text-[#2FD08A]" />
+                    <span>Booking Confirmed — Detailed Entry Information</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="p-2.5 rounded-lg bg-white border border-emerald-100">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                        Exact Location
+                      </span>
+                      <p className="font-semibold text-slate-800 mt-0.5">
+                        {space.house_no ? `Unit/House: ${space.house_no}` : "House no. not set"}
+                        {space.building_name ? ` • ${space.building_name}` : ""}
+                      </p>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-white border border-emerald-100">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                        Host Contact Phone
+                      </span>
+                      <p className="font-semibold text-slate-800 mt-0.5 flex items-center gap-2">
+                        <span>{space.contact_phone || space.owner_phone || "Not listed"}</span>
+                        {(space.contact_phone || space.owner_phone) && (
+                          <a
+                            href={`tel:${space.contact_phone || space.owner_phone}`}
+                            className="text-[#26b878] hover:underline font-bold"
+                          >
+                            Call Now
+                          </a>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+
+                  {space.entry_instructions && (
+                    <div className="p-2.5 rounded-lg bg-white border border-emerald-100 text-xs">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                        Gate Entry Instructions
+                      </span>
+                      <p className="font-mono text-slate-800 mt-0.5">
+                        {space.entry_instructions}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-4 rounded-xl bg-slate-50 border border-slate-200/80 p-4">
+                  <div className="flex items-center gap-2 text-xs font-bold text-[#0B1F3A] mb-1">
+                    <Lock className="w-4 h-4 text-slate-500" />
+                    <span>Driver Privacy Shield Active</span>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Exact house number, building name, gate entry instructions, and host phone number are revealed immediately after completing a confirmed booking.
+                  </p>
+                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                    <div className="p-2 rounded-lg bg-white border border-slate-200/70 text-slate-400 font-medium">
+                      House No: <span className="font-bold text-slate-600">🔒 Locked</span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-white border border-slate-200/70 text-slate-400 font-medium">
+                      Building: <span className="font-bold text-slate-600">🔒 Locked</span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-white border border-slate-200/70 text-slate-400 font-medium">
+                      Instructions: <span className="font-bold text-slate-600">🔒 Locked</span>
+                    </div>
+                    <div className="p-2 rounded-lg bg-white border border-slate-200/70 text-slate-400 font-medium">
+                      Host Phone: <span className="font-bold text-slate-600">🔒 Locked</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Operating Availability Schedule */}
@@ -590,6 +882,7 @@ export default function SpaceDetailView({ id }: { id: string }) {
                     min={getTodayDateString()}
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
+                    suppressHydrationWarning
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs sm:text-sm font-semibold text-[#0B1F3A] focus:outline-none focus:ring-2 focus:ring-[#2FD08A]/40"
                   />
                 </div>
@@ -618,6 +911,7 @@ export default function SpaceDetailView({ id }: { id: string }) {
                 <select
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
+                  suppressHydrationWarning
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-semibold text-[#0B1F3A] focus:outline-none focus:ring-2 focus:ring-[#2FD08A]/40 cursor-pointer"
                 >
                   {TIME_SLOTS.map((t) => {
@@ -682,6 +976,14 @@ export default function SpaceDetailView({ id }: { id: string }) {
                 </div>
               </div>
 
+              {/* Protect your car Section (Grouping ParkIt plans & Partner insurers) */}
+              <ProtectCarSection
+                plans={insurancePlans}
+                selectedPlanId={selectedPlan?.id || selectedPlanId}
+                onSelectPlan={setSelectedPlanId}
+                durationHours={durationHours}
+              />
+
               {/* Live Price Breakdown */}
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-100 space-y-2 text-xs">
                 <div className="flex justify-between text-slate-600">
@@ -690,9 +992,15 @@ export default function SpaceDetailView({ id }: { id: string }) {
                   </span>
                   <span className="font-semibold text-[#0B1F3A]">₹{subtotal}</span>
                 </div>
-                <div className="flex justify-between text-slate-600">
-                  <span>Guaranteed Parking Protection</span>
-                  <span className="font-semibold text-emerald-600">Free</span>
+                <div className="flex justify-between items-center text-slate-600">
+                  <div className="flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#2FD08A]" />
+                    <span className="font-medium text-[#0B1F3A]">{selectedPlan?.plan_name || "Vehicle Protection"}</span>
+                    <span className="text-[10px] text-slate-400">({selectedPlan?.provider || "ParkIt"})</span>
+                  </div>
+                  <span className={`font-semibold ${insurancePremium === 0 ? "text-emerald-600" : "text-[#0B1F3A]"}`}>
+                    {insurancePremium === 0 ? "Included" : `+₹${insurancePremium}`}
+                  </span>
                 </div>
                 <div className="pt-2 border-t border-slate-200 flex justify-between items-baseline font-bold text-sm text-[#0B1F3A]">
                   <span>Total (incl. taxes)</span>
@@ -713,21 +1021,19 @@ export default function SpaceDetailView({ id }: { id: string }) {
               )}
 
               {/* Prominent Green "Book now" Button */}
-              <Link
-                href={checkoutUrl}
-                aria-disabled={!currentSlotStatus.available}
-                onClick={(e) => {
-                  if (!currentSlotStatus.available) e.preventDefault();
-                }}
+              <button
+                type="button"
+                disabled={!currentSlotStatus.available}
+                onClick={handleBookNow}
                 className={`w-full font-extrabold text-sm sm:text-base py-3.5 px-5 rounded-xl shadow-lg transition-all duration-200 flex items-center justify-center gap-2 ${
                   currentSlotStatus.available
                     ? "bg-[#2FD08A] hover:bg-[#26b878] text-[#0B1F3A] hover:shadow-xl active:scale-[0.98] cursor-pointer"
-                    : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none pointer-events-none"
+                    : "bg-slate-200 text-slate-400 cursor-not-allowed shadow-none"
                 }`}
               >
                 <span>Book now</span>
                 <ArrowRight className="w-4 h-4 stroke-[2.5]" />
-              </Link>
+              </button>
 
               <div className="text-center">
                 <p className="text-[11px] text-slate-400">
@@ -753,22 +1059,56 @@ export default function SpaceDetailView({ id }: { id: string }) {
           </span>
         </div>
 
-        <Link
-          href={checkoutUrl}
-          aria-disabled={!currentSlotStatus.available}
-          onClick={(e) => {
-            if (!currentSlotStatus.available) e.preventDefault();
-          }}
+        <button
+          type="button"
+          disabled={!currentSlotStatus.available}
+          onClick={handleBookNow}
           className={`font-extrabold text-sm py-2.5 px-6 rounded-xl shadow-md transition-all flex items-center gap-1.5 ${
             currentSlotStatus.available
               ? "bg-[#2FD08A] hover:bg-[#26b878] text-[#0B1F3A] active:scale-95 cursor-pointer"
-              : "bg-slate-200 text-slate-400 cursor-not-allowed pointer-events-none"
+              : "bg-slate-200 text-slate-400 cursor-not-allowed"
           }`}
         >
           <span>Book now</span>
           <ArrowRight className="w-4 h-4" />
-        </Link>
+        </button>
       </div>
+
+      {/* Authentication Modal shown when unauthenticated user attempts to book */}
+      <AuthModal
+        isOpen={showAuthModal}
+        onClose={() => setShowAuthModal(false)}
+        redirectUrl={checkoutUrl}
+        title={`Sign in to book "${space.title}"`}
+        subtitle="Sign in or create a quick driver account to reserve this spot and receive instant gate entry OTP."
+        onSuccess={(user) => {
+          setCurrentUser(user);
+          setShowAuthModal(false);
+          setShowDriverVerifyModal(true);
+        }}
+      />
+
+      {/* Driver Verification & Instant Reservation Modal (Demo Mode) */}
+      <DriverVerificationModal
+        isOpen={showDriverVerifyModal}
+        onClose={() => setShowDriverVerifyModal(false)}
+        spaceId={space.id}
+        spaceTitle={space.title}
+        spaceAddress={displayAddress}
+        hourlyRate={hourlyRate}
+        durationHours={durationHours}
+        totalPrice={estimatedTotal}
+        selectedDate={selectedDate}
+        startTime={startTime}
+        initialPhone={driverPhone || currentUser?.phone || ""}
+        isAlreadyVerified={driverStatus === "verified"}
+        selectedPlan={selectedPlan}
+        insurancePremium={insurancePremium}
+        onReservationComplete={() => {
+          setHasPaidBooking(true);
+          setShowDriverVerifyModal(false);
+        }}
+      />
     </div>
   );
 }

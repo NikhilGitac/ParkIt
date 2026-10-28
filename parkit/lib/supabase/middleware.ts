@@ -48,21 +48,30 @@ export async function updateSession(request: NextRequest) {
 
     const { pathname } = request.nextUrl
 
-    // Protected routes: /onboarding, /driver/bookings
-    // Public & Demo Host routes: /, /driver, /driver/space/*, /owner/dashboard, /verify/*
+    // Protected routes requiring authentication on the server
     const isProtected =
+      pathname.startsWith("/owner/dashboard") ||
+      pathname.startsWith("/owner/list-space") ||
+      pathname.startsWith("/driver/checkout") ||
       pathname.startsWith("/driver/bookings") ||
+      pathname.startsWith("/verify") ||
       pathname.startsWith("/onboarding");
 
     if (!user && isProtected) {
       const url = request.nextUrl.clone();
       url.pathname = "/login";
-      url.searchParams.set("next", pathname);
+      const fullPath = request.nextUrl.pathname + request.nextUrl.search;
+      url.searchParams.set("next", fullPath);
       return NextResponse.redirect(url);
     }
 
     // Redirect logged-in users away from auth pages
     if (user && (pathname === "/login" || pathname === "/signup")) {
+      const nextParam = request.nextUrl.searchParams.get("next");
+      if (nextParam && nextParam.startsWith("/")) {
+        return NextResponse.redirect(new URL(nextParam, request.url));
+      }
+
       const { data: profile } = await supabase
         .from("profiles")
         .select("role")
@@ -94,17 +103,7 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(url)
       }
 
-      if (pathname.startsWith("/driver") && profile.role !== "driver") {
-        const url = request.nextUrl.clone()
-        url.pathname = "/owner/dashboard"
-        return NextResponse.redirect(url)
-      }
 
-      if (pathname === "/owner" && profile.role !== "owner") {
-        const url = request.nextUrl.clone()
-        url.pathname = "/driver"
-        return NextResponse.redirect(url)
-      }
     }
   } catch (err) {
     // Gracefully fallback on any connection / network error

@@ -316,6 +316,8 @@ export default function VerifyView({ bookingId }: VerifyViewProps) {
                     const clean = e.target.value.replace(/\D/g, "");
                     setOtpInput(clean);
                   }}
+                  autoComplete="off"
+                  suppressHydrationWarning
                   placeholder="• • • • • •"
                   className="w-full text-center tracking-[0.5em] font-mono text-3xl font-extrabold py-3.5 bg-slate-50 border-2 border-slate-200 focus:border-[#2FD08A] rounded-xl focus:outline-none focus:ring-4 focus:ring-[#2FD08A]/20 transition-all text-[#0B1F3A]"
                 />

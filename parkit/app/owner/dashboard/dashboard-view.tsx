@@ -4,7 +4,6 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
-import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import {
   Car,
@@ -57,6 +56,8 @@ export interface OwnerSpace {
   is_active: boolean;
   rating: number;
   review_count: number;
+  verified_host?: boolean;
+  max_vehicle_type?: string;
   created_at?: string;
 }
 
@@ -67,7 +68,6 @@ export interface OwnerBooking {
   space_photo?: string;
   driver_id: string;
   driver_name: string;
-  driver_phone?: string;
   driver_avatar?: string;
   start_time: string;
   end_time: string;
@@ -75,6 +75,15 @@ export interface OwnerBooking {
   status: "pending_payment" | "confirmed" | "checked_in" | "completed" | "cancelled" | string;
   payment_status: "unpaid" | "paid" | "refunded" | string;
   otp_code?: string;
+  insurance_plan_name?: string;
+  insurance_provider?: string;
+  policy_number?: string;
+  claim?: {
+    id: string;
+    damage_type: string;
+    status: string;
+    incident_at?: string;
+  } | null;
   created_at?: string;
 }
 
@@ -98,6 +107,17 @@ export default function DashboardView() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [realtimeNotification, setRealtimeNotification] = useState<string | null>(null);
+  const [showPublishedToast, setShowPublishedToast] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("published") === "true") {
+        setShowPublishedToast(true);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
   const [isSimulatingBooking, setIsSimulatingBooking] = useState(false);
 
   // Edit Space Modal State
@@ -158,14 +178,14 @@ export default function DashboardView() {
           schema: "public",
           table: "bookings",
         },
-        (payload) => {
+        (payload: any) => {
           console.log("Realtime event received on bookings:", payload);
           setRealtimeNotification("✨ New booking activity received in real-time!");
           loadDashboardData(true);
           setTimeout(() => setRealtimeNotification(null), 5000);
         }
       )
-      .subscribe((status) => {
+      .subscribe((status: string) => {
         console.log("Supabase realtime bookings channel status:", status);
       });
 
@@ -331,7 +351,6 @@ export default function DashboardView() {
   if (loading) {
     return (
       <div className="flex min-h-screen flex-col bg-[#F8FAFC]">
-        <Header />
         <main className="flex-1 flex items-center justify-center p-8">
           <div className="text-center space-y-3">
             <div className="w-12 h-12 border-4 border-[#2FD08A] border-t-transparent rounded-full animate-spin mx-auto" />
@@ -346,8 +365,6 @@ export default function DashboardView() {
 
   return (
     <div className="flex min-h-screen flex-col bg-[#F8FAFC] text-[#0B1F3A]">
-      <Header />
-
       {/* Realtime Notification Banner */}
       {realtimeNotification && (
         <div className="sticky top-16 z-50 bg-[#0B1F3A] text-white px-4 py-2.5 shadow-lg border-b border-[#2FD08A]/40 flex items-center justify-between animate-in slide-in-from-top-2 duration-300">
@@ -367,6 +384,25 @@ export default function DashboardView() {
       )}
 
       <main className="flex-1 pb-20">
+        {/* Space Published Success Notification */}
+        {showPublishedToast && (
+          <div className="bg-[#2FD08A] text-[#0B1F3A] px-4 py-3.5 shadow-md border-b border-[#26b878] flex items-center justify-between">
+            <div className="max-w-7xl mx-auto w-full flex items-center justify-between text-xs sm:text-sm">
+              <div className="flex items-center gap-2.5">
+                <CheckCircle2 className="w-5 h-5 shrink-0 stroke-[2.5]" />
+                <span className="font-extrabold">
+                  🎉 Parking space published successfully! Your listing is now live in your dashboard and on the driver map.
+                </span>
+              </div>
+              <button
+                onClick={() => setShowPublishedToast(false)}
+                className="p-1 hover:bg-black/10 rounded-lg transition-colors ml-4"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
         {/* Requirement 1: Welcome Header with the Owner's Name */}
         <section className="bg-[#0B1F3A] text-white pt-10 pb-16 px-4 sm:px-6 lg:px-8 border-b border-slate-800">
           <div className="mx-auto max-w-7xl">
@@ -396,7 +432,7 @@ export default function DashboardView() {
                   </div>
 
                   <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight">
-                    Welcome back, {owner?.full_name || "Rajesh Sharma"}
+                    Welcome back, {owner?.full_name || "Host"}
                   </h1>
 
                   <p className="mt-1 text-xs sm:text-sm text-slate-300">
@@ -633,9 +669,17 @@ export default function DashboardView() {
                         <div>
                           {/* Title & Rating */}
                           <div className="flex items-start justify-between gap-2">
-                            <h3 className="font-extrabold text-base text-[#0B1F3A] leading-snug line-clamp-1">
-                              {space.title}
-                            </h3>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <h3 className="font-extrabold text-base text-[#0B1F3A] leading-snug line-clamp-1">
+                                {space.title}
+                              </h3>
+                              {space.verified_host && (
+                                <span className="inline-flex items-center gap-1 bg-[#2FD08A]/20 text-[#0B1F3A] border border-[#2FD08A]/40 text-[10px] font-extrabold px-2 py-0.5 rounded-full shrink-0">
+                                  <ShieldCheck className="w-3 h-3 text-[#2FD08A]" />
+                                  Verified Host
+                                </span>
+                              )}
+                            </div>
 
                             <div className="flex items-center gap-1 text-xs font-bold text-[#0B1F3A] bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200/60 shrink-0">
                               <Star className="w-3.5 h-3.5 fill-[#FFC93C] text-[#FFC93C]" />
@@ -779,8 +823,8 @@ export default function DashboardView() {
                               <h4 className="font-bold text-sm text-[#0B1F3A]">
                                 {booking.driver_name}
                               </h4>
-                              <p className="text-[11px] text-slate-400">
-                                {booking.driver_phone || "+91 99100 34001"}
+                              <p className="text-[11px] text-slate-500 font-medium">
+                                Verified Driver
                               </p>
                             </div>
                           </div>
@@ -793,6 +837,32 @@ export default function DashboardView() {
                               {booking.payment_status === "paid" ? "Paid Online" : "Payment Pending"}
                             </span>
                           </div>
+                        </div>
+
+                        {/* Driver Selected Insurance Plan & Read-Only Claim (if exists) */}
+                        <div className="px-3 py-2 bg-slate-50 rounded-xl border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                          <div className="flex items-center gap-1.5 text-slate-700">
+                            <ShieldCheck className="w-3.5 h-3.5 text-[#2FD08A] shrink-0" />
+                            <span className="font-bold text-[#0B1F3A]">
+                              {booking.insurance_plan_name || "ParkIt Protect Basic"}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              ({booking.policy_number || "PK-2026-ACTIVE"})
+                            </span>
+                          </div>
+
+                          {booking.claim ? (
+                            <div className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rose-800 bg-rose-50 px-2.5 py-0.5 rounded-full border border-rose-200">
+                              <AlertTriangle className="w-3 h-3 text-rose-600" />
+                              <span>
+                                Claim filed: {booking.claim.damage_type.replace("_", " ")}, {booking.claim.status.replace("_", " ")}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 font-medium">
+                              No claims filed
+                            </span>
+                          )}
                         </div>
 
                         {/* Space & Time Slot */}

@@ -25,5 +25,12 @@ function getCredentials() {
 
 export function createClient() {
   const { url, key } = getCredentials()
-  return createBrowserClient(url, key)
+  const isBrowser = typeof window !== "undefined"
+  return createBrowserClient(url, key, {
+    auth: {
+      persistSession: isBrowser,
+      autoRefreshToken: isBrowser,
+      detectSessionInUrl: isBrowser,
+    },
+  })
 }

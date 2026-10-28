@@ -2,7 +2,6 @@ import { Suspense } from "react";
 import AssistantView from "./assistant-view";
 import { Metadata } from "next";
 
-export const instant = false;
 
 export const metadata: Metadata = {
   title: "AI Parking Concierge | ParKit",

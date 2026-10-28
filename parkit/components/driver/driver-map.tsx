@@ -1,11 +1,10 @@
 "use client";
 
 import { useEffect, useRef, memo } from "react";
-import { MapContainer, TileLayer, Marker, useMap, ZoomControl } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { ParkingSpace } from "@/lib/parking-data";
-import { Navigation, Crosshair } from "lucide-react";
+import { Crosshair } from "lucide-react";
 
 // Marker HTML generator for price pills (Uber / Airbnb style)
 function createPriceIcon(price: number, isSelected: boolean, isBestMatch: boolean) {
@@ -86,34 +85,6 @@ const userLocationIcon = L.divIcon({
   iconAnchor: [12, 12],
 });
 
-// Helper component to smoothly center/fly map when selected space changes
-function MapController({
-  centerLat,
-  centerLng,
-  zoom,
-  selectedSpace,
-}: {
-  centerLat: number;
-  centerLng: number;
-  zoom?: number;
-  selectedSpace: ParkingSpace | null;
-}) {
-  const map = useMap();
-  const prevSpaceId = useRef<string | null>(null);
-
-  useEffect(() => {
-    if (selectedSpace && selectedSpace.id !== prevSpaceId.current) {
-      prevSpaceId.current = selectedSpace.id;
-      map.flyTo([selectedSpace.latitude, selectedSpace.longitude], 15, {
-        animate: true,
-        duration: 0.7,
-      });
-    }
-  }, [selectedSpace, map]);
-
-  return null;
-}
-
 interface DriverMapProps {
   userLocation: { lat: number; lng: number } | null;
   spaces: ParkingSpace[];
@@ -131,16 +102,124 @@ function DriverMapInner({
   onSelectSpace,
   onRecenter,
 }: DriverMapProps) {
-  const fallbackCenter = [28.4744, 77.5039] as [number, number];
-  const initialCenter = userLocation
-    ? ([userLocation.lat, userLocation.lng] as [number, number])
-    : fallbackCenter;
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const markersLayerRef = useRef<L.LayerGroup | null>(null);
+  const userMarkerRef = useRef<L.Marker | null>(null);
+  const prevSelectedId = useRef<string | null>(null);
+
+  // Initialize Map directly with Leaflet on mount
+  useEffect(() => {
+    if (!containerRef.current) return;
+    if (mapRef.current) return;
+
+    const fallbackCenter: [number, number] = [28.4744, 77.5039];
+    const initialCenter: [number, number] = userLocation
+      ? [userLocation.lat, userLocation.lng]
+      : fallbackCenter;
+
+    const map = L.map(containerRef.current, {
+      center: initialCenter,
+      zoom: 14,
+      zoomControl: false,
+      scrollWheelZoom: true,
+    });
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19,
+    }).addTo(map);
+
+    L.control.zoom({ position: "topright" }).addTo(map);
+
+    const markersLayer = L.layerGroup().addTo(map);
+    markersLayerRef.current = markersLayer;
+    mapRef.current = map;
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+      markersLayerRef.current = null;
+      userMarkerRef.current = null;
+    };
+  }, []); // Run once on mount
+
+  // Update user location beacon
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    if (userMarkerRef.current) {
+      userMarkerRef.current.remove();
+      userMarkerRef.current = null;
+    }
+
+    if (userLocation) {
+      const marker = L.marker([userLocation.lat, userLocation.lng], {
+        icon: userLocationIcon,
+        zIndexOffset: 100,
+      }).addTo(map);
+      userMarkerRef.current = marker;
+    }
+  }, [userLocation]);
+
+  // Update parking space price pill pins
+  useEffect(() => {
+    const markersLayer = markersLayerRef.current;
+    if (!markersLayer) return;
+
+    markersLayer.clearLayers();
+
+    spaces.forEach((space) => {
+      const isSelected = selectedSpace?.id === space.id;
+      const isBestMatch = bestMatchId === space.id;
+      const icon = createPriceIcon(space.price_per_hour, isSelected, isBestMatch);
+
+      const marker = L.marker([space.latitude, space.longitude], {
+        icon,
+        zIndexOffset: isSelected ? 500 : isBestMatch ? 300 : 100,
+      });
+
+      marker.on("click", () => {
+        onSelectSpace(space);
+      });
+
+      marker.addTo(markersLayer);
+    });
+  }, [spaces, selectedSpace, bestMatchId, onSelectSpace]);
+
+  // Smoothly fly to selected space when it changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !selectedSpace) return;
+
+    if (selectedSpace.id !== prevSelectedId.current) {
+      prevSelectedId.current = selectedSpace.id;
+      map.flyTo([selectedSpace.latitude, selectedSpace.longitude], 15, {
+        animate: true,
+        duration: 0.7,
+      });
+    }
+  }, [selectedSpace]);
+
+  const handleRecenterClick = () => {
+    const map = mapRef.current;
+    if (map && userLocation) {
+      map.flyTo([userLocation.lat, userLocation.lng], 15, {
+        animate: true,
+        duration: 0.7,
+      });
+    }
+    onRecenter();
+  };
 
   return (
     <div className="relative w-full h-full">
       <style jsx global>{`
         @keyframes parkit-ping {
-          75%, 100% {
+          75%,
+          100% {
             transform: scale(2.2);
             opacity: 0;
           }
@@ -176,60 +255,12 @@ function DriverMapInner({
         }
       `}</style>
 
-      <MapContainer
-        center={initialCenter}
-        zoom={14}
-        zoomControl={false}
-        scrollWheelZoom={true}
-        className="w-full h-full z-0"
-      >
-        {/* OpenStreetMap Standard Tiles */}
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          maxZoom={19}
-        />
+      {/* Direct Leaflet DOM Container */}
+      <div ref={containerRef} className="w-full h-full z-0" />
 
-        <ZoomControl position="topright" />
-
-        <MapController
-          centerLat={initialCenter[0]}
-          centerLng={initialCenter[1]}
-          selectedSpace={selectedSpace}
-        />
-
-        {/* User Location Pulsing Beacon */}
-        {userLocation && (
-          <Marker
-            position={[userLocation.lat, userLocation.lng]}
-            icon={userLocationIcon}
-            zIndexOffset={100}
-          />
-        )}
-
-        {/* Parking Space Price Pill Pins */}
-        {spaces.map((space) => {
-          const isSelected = selectedSpace?.id === space.id;
-          const isBestMatch = bestMatchId === space.id;
-          const icon = createPriceIcon(space.price_per_hour, isSelected, isBestMatch);
-
-          return (
-            <Marker
-              key={space.id}
-              position={[space.latitude, space.longitude]}
-              icon={icon}
-              zIndexOffset={isSelected ? 500 : isBestMatch ? 300 : 100}
-              eventHandlers={{
-                click: () => onSelectSpace(space),
-              }}
-            />
-          );
-        })}
-      </MapContainer>
-
-      {/* Uber-Style Floating "Recenter / Locate Me" Button */}
+      {/* Floating Recenter / Locate Me Button */}
       <button
-        onClick={onRecenter}
+        onClick={handleRecenterClick}
         aria-label="Recenter Map to My Location"
         className="absolute bottom-36 md:bottom-8 right-4 md:right-8 z-[800] bg-white hover:bg-slate-50 text-[#0B1F3A] hover:text-[#2FD08A] w-12 h-12 rounded-full shadow-soft-lg border border-slate-200/90 flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95"
       >

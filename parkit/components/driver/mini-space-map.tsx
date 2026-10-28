@@ -1,7 +1,6 @@
 "use client";
 
-import { memo } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { useEffect, useRef, memo } from "react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { Navigation, ExternalLink } from "lucide-react";
@@ -40,32 +39,47 @@ interface MiniSpaceMapProps {
 }
 
 function MiniSpaceMap({ latitude, longitude, title, address }: MiniSpaceMapProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
   const googleMapsUrl = `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    if (mapRef.current) return;
+
+    const map = L.map(containerRef.current, {
+      center: [latitude, longitude],
+      zoom: 15,
+      zoomControl: false,
+      scrollWheelZoom: false,
+    });
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      maxZoom: 19,
+    }).addTo(map);
+
+    const marker = L.marker([latitude, longitude], { icon: spotPinIcon }).addTo(map);
+    marker.bindPopup(`
+      <div class="text-xs font-sans">
+        <strong class="block text-[#0B1F3A] mb-0.5">${title}</strong>
+        <span class="text-slate-500">${address}</span>
+      </div>
+    `);
+
+    mapRef.current = map;
+
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, [latitude, longitude, title, address]);
 
   return (
     <div className="relative w-full h-56 sm:h-64 rounded-2xl overflow-hidden border border-slate-200/90 shadow-soft">
-      <MapContainer
-        center={[latitude, longitude]}
-        zoom={15}
-        zoomControl={false}
-        scrollWheelZoom={false}
-        className="w-full h-full z-0"
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          maxZoom={19}
-        />
-
-        <Marker position={[latitude, longitude]} icon={spotPinIcon}>
-          <Popup>
-            <div className="text-xs font-sans">
-              <strong className="block text-[#0B1F3A] mb-0.5">{title}</strong>
-              <span className="text-slate-500">{address}</span>
-            </div>
-          </Popup>
-        </Marker>
-      </MapContainer>
+      {/* Direct Leaflet DOM container */}
+      <div ref={containerRef} className="w-full h-full z-0" />
 
       {/* Get directions badge */}
       <a

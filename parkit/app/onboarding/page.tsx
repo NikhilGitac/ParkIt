@@ -201,7 +201,7 @@ export default function OnboardingPage() {
                       </div>
                       <div>
                         <p className="text-sm font-bold text-[#0B1F3A]">Space Owner</p>
-                        <p className="text-[11px] text-slate-500">List space & earn $$$</p>
+                        <p className="text-[11px] text-slate-500">List space & earn ₹₹₹</p>
                       </div>
                     </div>
                   </div>

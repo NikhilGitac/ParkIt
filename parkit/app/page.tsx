@@ -8,7 +8,7 @@ import {
   Clock,
   ShieldCheck,
   QrCode,
-  DollarSign,
+  IndianRupee,
   ArrowRight,
   Sparkles,
   Zap,
@@ -20,10 +20,10 @@ import {
 
 export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col bg-[#F8FAFC]">
+    <div className="flex min-h-screen flex-col bg-[#F8FAFC] overflow-x-hidden w-full max-w-full">
       <Header />
 
-      <main className="flex-1">
+      <main className="flex-1 overflow-x-hidden w-full max-w-full">
         {/* HERO SECTION */}
         <section className="relative overflow-hidden bg-gradient-to-b from-white via-[#F0F4F8] to-[#F8FAFC] py-16 sm:py-24 lg:py-28">
           {/* Subtle decorative background glow */}
@@ -65,13 +65,13 @@ export default function Home() {
               </Link>
 
               <Link
-                href="/owner"
+                href="/owner/list-space"
                 className="group flex h-14 w-full sm:w-auto items-center justify-center gap-2.5 rounded-[16px] bg-[#0B1F3A] px-8 text-base font-bold text-white shadow-soft transition-all hover:bg-[#163359] hover:shadow-soft-lg hover:-translate-y-0.5 active:translate-y-0"
               >
-                <DollarSign className="h-5 w-5 text-[#FFC93C] stroke-[2.4]" />
+                <IndianRupee className="h-5 w-5 text-[#FFC93C] stroke-[2.4]" />
                 <span>List your space</span>
                 <span className="rounded-full bg-[#FFC93C] px-2 py-0.5 text-xs font-black text-[#0B1F3A]">
-                  Earn $$$
+                  Earn ₹₹₹
                 </span>
               </Link>
             </div>
@@ -141,7 +141,7 @@ export default function Home() {
                 <p className="mt-1 text-sm font-medium text-slate-500">Average Time Saved Daily</p>
               </div>
               <div className="p-4">
-                <p className="text-3xl sm:text-4xl font-extrabold text-[#0B1F3A]">$420</p>
+                <p className="text-3xl sm:text-4xl font-extrabold text-[#0B1F3A]">₹14,500</p>
                 <p className="mt-1 text-sm font-medium text-slate-500">Avg Monthly Host Earnings</p>
               </div>
               <div className="p-4">
@@ -203,7 +203,7 @@ export default function Home() {
               {/* Card 3 */}
               <div className="rounded-[16px] bg-white p-8 shadow-soft border border-slate-100 transition-all hover:-translate-y-1 hover:shadow-soft-lg">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FFC93C]/20 text-[#0B1F3A] mb-6">
-                  <DollarSign className="h-6 w-6 text-[#0B1F3A]" />
+                  <IndianRupee className="h-6 w-6 text-[#0B1F3A]" />
                 </div>
                 <h3 className="text-xl font-bold text-[#0B1F3A]">Monetize Idle Driveways</h3>
                 <p className="mt-3 text-slate-600 text-sm leading-relaxed">
@@ -385,10 +385,10 @@ export default function Home() {
                 </Link>
 
                 <Link
-                  href="/owner"
+                  href="/owner/list-space"
                   className="flex h-13 w-full sm:w-auto items-center justify-center gap-2 rounded-[16px] border border-white/30 bg-white/10 px-8 text-base font-bold text-white transition-all hover:bg-white/20"
                 >
-                  <DollarSign className="h-5 w-5 text-[#FFC93C]" />
+                  <IndianRupee className="h-5 w-5 text-[#FFC93C]" />
                   <span>List your space</span>
                 </Link>
               </div>

@@ -38,13 +38,15 @@ export function FloatingSearchBar({
       {/* Search Bar Container */}
       <div className="w-full max-w-xl pointer-events-auto">
         <div className="bg-white/95 backdrop-blur-md rounded-2xl shadow-soft-lg border border-slate-200/90 p-2 sm:p-2.5 flex items-center gap-2 transition-all">
-          {/* ParKit Minimal Logo / Home */}
+          {/* Back Navigation Button */}
           <Link
             href="/"
-            title="ParKit Home"
-            className="w-9 h-9 rounded-xl bg-[#0B1F3A] hover:bg-[#163359] text-[#2FD08A] flex items-center justify-center shrink-0 transition-colors"
+            title="Back to Home"
+            aria-label="Back to Home"
+            className="inline-flex items-center gap-1.5 h-9 px-2.5 sm:px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#0B1F3A] font-bold text-xs shrink-0 transition-all hover:-translate-x-0.5 active:translate-x-0 group cursor-pointer"
           >
-            <Car className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4 stroke-[2.5] text-[#0B1F3A] transition-transform group-hover:-translate-x-0.5" />
+            <span className="font-extrabold text-[#0B1F3A]">Back</span>
           </Link>
 
           {/* Search Input Box */}

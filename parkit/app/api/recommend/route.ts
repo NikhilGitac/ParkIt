@@ -252,10 +252,6 @@ async function handleRecommendation(
     }
   } catch (e) {}
 
-  if (typeof globalThis.__PARKIT_DEMO_BOOKINGS !== "undefined") {
-    activeBookings.push(...globalThis.__PARKIT_DEMO_BOOKINGS);
-  }
-
   // 3. Score Each Space Using Transparent Formula:
   // score = distance score + price score + availability score
   const scoredSpaces = candidateSpaces.map((space) => {
